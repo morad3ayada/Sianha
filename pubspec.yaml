@@ -1,0 +1,36 @@
+name: my_service_app
+description: A service application.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  shared_preferences: ^2.2.2
+  connectivity_plus: ^5.0.0
+  cupertino_icons: ^1.0.2
+  cached_network_image: ^3.3.1
+  image_picker: ^1.0.4
+  go_router: ^12.1.0
+  provider: ^6.1.1 
+  geolocator: ^11.0.1
+  geocoding: ^2.1.1
+  google_maps_flutter: ^2.2.3
+  location: ^5.0.0
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true
+  # احذف هذه السطور أو علقها لأننا نستخدم الأيقونات الآن
+  assets:
+    - assets/
