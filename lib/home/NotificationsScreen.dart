@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import '../core/api/api_client.dart';
+import '../core/api/api_constants.dart';
 
 class ComplaintScreen extends StatefulWidget {
   const ComplaintScreen({super.key});
@@ -13,7 +16,11 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _complaintController = TextEditingController();
-  final TextEditingController _orderNumberController = TextEditingController();
+  
+  List<dynamic> _userOrders = [];
+  dynamic _selectedOrderData;
+  bool _isLoadingOrders = false;
+  bool _isSubmitting = false;
 
   List<XFile> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
@@ -27,6 +34,42 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
     'أسعار غير متفق عليها',
     'أخرى'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOrders();
+  }
+
+  Future<void> _fetchOrders() async {
+    setState(() {
+      _isLoadingOrders = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      if (token != null) {
+        final client = ApiClient();
+        final response = await client.get(ApiConstants.myOrders, token: token);
+        
+        if (response != null && response is List) {
+          setState(() {
+            _userOrders = response;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching orders for complaints: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingOrders = false;
+        });
+      }
+    }
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -51,11 +94,11 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
     });
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.yellow[700],
+        backgroundColor: isError ? Colors.red : Colors.yellow[700],
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -64,14 +107,77 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
     );
   }
 
-  void _submitComplaint() {
+  Future<void> _submitComplaint() async {
     if (_formKey.currentState!.validate()) {
-      // محاكاة إرسال الشكوى
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
+      if (_selectedOrderData == null) {
+        _showSnackBar('الرجاء اختيار رقم الطلب أولاً', isError: true);
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('auth_token');
+
+        if (token == null) {
+          throw Exception('يجب تسجيل الدخول أولاً');
+        }
+
+        final client = ApiClient();
+        
+        // Mapping as per USER_REQUEST:
+        // Title -> _selectedComplaintType
+        // ProblemDescription -> _complaintController.text
+        // customerPhoneNumber -> _phoneController.text
+        // Address -> "شكوي من الخدمة" (fixed)
+        // IDs inherited from selected order
+        
+        final payload = {
+          "title": _selectedComplaintType,
+          "address": "شكوي من الخدمة",
+          "problemDescription": _complaintController.text,
+          "customerPhoneNumber": _phoneController.text,
+          "price": 0,
+          "cost": 0,
+          "costRate": 0,
+          "areaId": _selectedOrderData['areaId'] ?? _selectedOrderData['AreaId'],
+          "governorateId": _selectedOrderData['governorateId'] ?? _selectedOrderData['GovernorateId'],
+          "payWay": 0,
+          "urgent": false,
+          "serviceSubCategoryId": _selectedOrderData['serviceSubCategoryId'] ?? _selectedOrderData['ServiceSubCategoryId'],
+          "serviceCategoryId": _selectedOrderData['serviceCategoryId'] ?? _selectedOrderData['ServiceCategoryId'],
+        };
+
+        final response = await client.post(
+          ApiConstants.createOrder,
+          payload,
+          token: token,
+        );
+
+        if (mounted) {
+          _showSuccessDialog();
+        }
+      } catch (e) {
+        _showSnackBar('فشل إرسال الشكوى: ${e.toString()}', isError: true);
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
+      }
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
           title: Column(
@@ -119,7 +225,6 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
           ],
         ),
       );
-    }
   }
 
   Widget _buildImageGrid() {
@@ -405,9 +510,9 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
 
               SizedBox(height: 20),
 
-              // Order Number (Optional)
+              // Order Number Dropdown
               Text(
-                'رقم الطلب (اختياري)',
+                'رقم الطلب *',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -415,30 +520,50 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
                 ),
               ),
               SizedBox(height: 8),
-              TextFormField(
-                controller: _orderNumberController,
-                textAlign: TextAlign.right,
-                decoration: InputDecoration(
-                  hintText: 'أدخل رقم الطلب إذا كان متوفراً',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
-                  prefixIcon:
-                      Icon(Icons.receipt_rounded, color: Colors.grey[600]),
-                  border: OutlineInputBorder(
+              _isLoadingOrders 
+                ? Center(child: CircularProgressIndicator(color: Colors.yellow[700]))
+                : Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                    border: Border.all(
+                      color: Colors.grey[300]!,
+                      width: 1,
+                    ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  child: DropdownButtonFormField<dynamic>(
+                    value: _selectedOrderData,
+                    items: _userOrders.map((dynamic order) {
+                      final orderId = order['id'] ?? order['Id'] ?? '---';
+                      final service = order['serviceSubCategoryName'] ?? order['ServiceSubCategoryName'] ?? 'طلب خدمة';
+                      return DropdownMenuItem<dynamic>(
+                        value: order,
+                        child: Text(
+                          '#${orderId.toString().substring(0, 8)} - $service',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (dynamic newValue) {
+                      setState(() {
+                        _selectedOrderData = newValue;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      hintText: _userOrders.isEmpty ? 'لا توجد طلبات سابقة' : 'اختر رقم الطلب',
+                      prefixIcon: Icon(Icons.receipt_rounded, color: Colors.grey[600]),
+                    ),
+                    validator: (value) {
+                      if (value == null) {
+                        return 'الرجاء اختيار رقم الطلب';
+                      }
+                      return null;
+                    },
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.yellow[700]!),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
-              ),
 
               SizedBox(height: 20),
 
@@ -534,7 +659,7 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
 
               // Submit Button
               ElevatedButton(
-                onPressed: _submitComplaint,
+                onPressed: _isSubmitting ? null : _submitComplaint,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.yellow[700],
                   foregroundColor: Colors.black,
@@ -544,20 +669,22 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
                   ),
                   elevation: 2,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.send_rounded),
-                    SizedBox(width: 8),
-                    Text(
-                      'إرسال الشكوى',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                child: _isSubmitting 
+                  ? CircularProgressIndicator(color: Colors.black)
+                  : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.send_rounded),
+                      SizedBox(width: 8),
+                      Text(
+                        'إرسال الشكوى',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ),
 
               SizedBox(height: 20),
@@ -572,7 +699,6 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
   void dispose() {
     _phoneController.dispose();
     _complaintController.dispose();
-    _orderNumberController.dispose();
     super.dispose();
   }
 }

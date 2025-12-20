@@ -65,8 +65,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
             // Optionally add merchant info to each product if needed
             for (var prod in productsList) {
               if (prod is Map) {
-                // Add merchant name to product for display if useful
-                prod['merchantName'] = item['fullName'] ?? item['name'] ?? '';
+                // Add merchant name and other details to product for display and order creation
+                prod['merchantName'] = item['fullName'] ?? item['name'] ?? item['FullName'] ?? item['Name'] ?? '';
+                prod['merchantId'] = item['id'] ?? item['Id'];
+                prod['areaId'] = item['areaId'] ?? item['AreaId'];
+                prod['governorateId'] = item['governorateId'] ?? item['GovernorateId'];
+                prod['serviceCategoryId'] = item['serviceCategoryId'] ?? item['ServiceCategoryId'];
+                prod['serviceSubCategoryId'] = item['serviceSubCategoryId'] ?? item['ServiceSubCategoryId'];
                 collectedProducts.add(prod);
               }
             }
@@ -167,13 +172,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         
                         final price = item['price'] ?? 0;
                         
-                        return _buildProductCard(name, imagePath, price);
+                        return _buildProductCard(item, name, imagePath, price);
                       },
                     ),
     );
   }
 
-  Widget _buildProductCard(String name, String? imageUrl, dynamic price) {
+  Widget _buildProductCard(Map<String, dynamic> item, String name, String? imageUrl, dynamic price) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -232,13 +237,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '$price ج.م',
-                  style: TextStyle(
-                    color: Colors.yellow[800],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$price ج.م',
+                      style: TextStyle(
+                        color: Colors.yellow[800],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => _showQuantityDialog(context, item),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.yellow[700],
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'شراء',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -246,6 +273,146 @@ class _ProductsScreenState extends State<ProductsScreen> {
         ],
       ),
     );
+  }
+
+  void _showQuantityDialog(BuildContext context, Map<String, dynamic> product) {
+    int quantity = 1;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('تحديد الكمية', textAlign: TextAlign.center),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Text(product['name'] ?? product['nameArabic'] ?? product['productName'] ?? '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          if (quantity > 1) {
+                            setDialogState(() => quantity--);
+                          }
+                        },
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$quantity',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          setDialogState(() => quantity++);
+                        },
+                        icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _createOrder(product, quantity);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow[700]),
+                  child: const Text('تأكيد الشراء', style: TextStyle(color: Colors.black)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _createOrder(Map<String, dynamic> product, int quantity) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الرجاء تسجيل الدخول أولاً')),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final orderData = {
+        "title": "طلب منتج: ${product['name'] ?? product['nameArabic'] ?? product['productName']}",
+        "problemDescription": "none",
+        "price": ((product['price'] ?? 0) * quantity).toInt(),
+        "cost": 0,
+        "costRate": 0,
+        "areaId": product['areaId'],
+        "governorateId": product['governorateId'],
+        "payWay": 0,
+        "urgent": false,
+        "merchantId": product['merchantId'],
+        "serviceSubCategoryId": product['serviceSubCategoryId'] ?? "94ee40a6-7a52-42a0-96fc-653f3da82161",
+        "serviceCategoryId": product['serviceCategoryId'] ?? "15db528b-a997-48bf-6275-08de3832fa71",
+        "orderProducts": [
+          {
+            "productId": product['id'],
+            "quantity": quantity
+          }
+        ]
+      };
+
+      print("Creating order with data: $orderData");
+
+      final response = await http.post(
+        Uri.parse(ApiConstants.createOrder),
+        headers: {
+          'accept': 'text/plain',
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(orderData),
+      );
+
+      if (mounted) Navigator.pop(context); // Close loading dialog
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء الطلب بنجاح'), backgroundColor: Colors.green),
+        );
+      } else {
+        throw Exception('فشل في إنشاء الطلب: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print("Error creating order: $e");
+      if (mounted) {
+         if (Navigator.canPop(context)) Navigator.pop(context); // Fallback to close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _showFullScreenImage(BuildContext context, String imageUrl) {
