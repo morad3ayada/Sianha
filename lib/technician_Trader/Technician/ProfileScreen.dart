@@ -389,28 +389,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  _technicianData['isOnline'] ? Colors.red : Colors.green,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-            ),
-            onPressed: () {
-              setState(() {
-                _technicianData['isOnline'] = !_technicianData['isOnline'];
-              });
-            },
-            icon: Icon(
-              _technicianData['isOnline']
-                  ? Icons.visibility_off
-                  : Icons.visibility,
-              color: Colors.white,
-            ),
-            label: Text(
-              _technicianData['isOnline'] ? 'تعطيل الحساب' : 'تفعيل الحساب',
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
+          // child: ElevatedButton.icon(
+          //   style: ElevatedButton.styleFrom(
+          //     backgroundColor:
+          //         _technicianData['isOnline'] ? Colors.red : Colors.green,
+          //     padding: const EdgeInsets.symmetric(vertical: 15),
+          //   ),
+          //   onPressed: () {
+          //     setState(() {
+          //       _technicianData['isOnline'] = !_technicianData['isOnline'];
+          //     });
+          //   },
+          //   icon: Icon(
+          //     _technicianData['isOnline']
+          //         ? Icons.visibility_off
+          //         : Icons.visibility,
+          //     color: Colors.white,
+          //   ),
+          //   label: Text(
+          //     _technicianData['isOnline'] ? 'تعطيل الحساب' : 'تفعيل الحساب',
+          //     style: const TextStyle(color: Colors.white),
+          //   ),
+          // ),
         ),
         const SizedBox(height: 10),
         SizedBox(

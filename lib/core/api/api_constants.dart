@@ -1,5 +1,5 @@
 class ApiConstants {
-  static const String baseUrl = "https://anamelorg.runasp.net";
+  static const String baseUrl = "https://api.khidma.shop";
   
   // Auth Endpoints
   static const String login = "$baseUrl/api/Auth/login";
@@ -35,6 +35,8 @@ class ApiConstants {
   static const String myShop = "$baseUrl/api/Merchants/my-shop";
   static const String shopOrders = "$baseUrl/api/Merchants/shop-orders";
   static const String merchantUpdateOrderStatus = "$baseUrl/api/Merchants/update-order-status";
+  static const String merchantAcceptOrder = "$baseUrl/api/Merchants/accept-order";
+  static const String merchantRejectOrder = "$baseUrl/api/Merchants/reject-order";
   static const String merchantAddProduct = "$baseUrl/api/Merchants/products";
   static const String merchantProductSearch = "$baseUrl/api/Merchants/products/search";
   static const String updateShopInfo = "$baseUrl/api/Merchants/update-shop-info";

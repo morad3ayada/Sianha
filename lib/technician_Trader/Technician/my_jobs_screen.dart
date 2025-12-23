@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import 'TechnicianOrderTrackingScreen.dart';
+import 'lib/sections/maintenance/OrderTrackingScreen.dart';
 
 class MyJobsScreen extends StatefulWidget {
   const MyJobsScreen({super.key});
@@ -13,15 +16,26 @@ class MyJobsScreen extends StatefulWidget {
 class _MyJobsScreenState extends State<MyJobsScreen> {
   List<dynamic> _myJobs = [];
   bool _isLoading = false;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _fetchMyJobs();
+    // Auto-refresh every 30 seconds
+    _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _fetchMyJobs(showLoading: false);
+    });
   }
 
-  Future<void> _fetchMyJobs() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchMyJobs({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
@@ -40,15 +54,15 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
               return {
                 ...data,
                 'id': data['id'] ?? data['Id'],
-                'customer': data['customerName'] ?? data['CustomerName'] ?? 'عميل',
-                'service': data['serviceSubCategoryName'] ?? data['serviceName'] ?? 'خدمة',
+                'customer': data['customerName'] ?? data['CustomerName'] ?? data['customer'] ?? data['customerInfo']?['name'] ?? 'عميل',
+                'service': data['serviceSubCategoryName'] ?? data['serviceName'] ?? data['serviceCategoryName'] ?? 'خدمة',
                 'problemDescription': data['problemDescription'] ?? data['notes'] ?? 'لا يوجد وصف',
-                'address': data['address'] ?? data['Address'] ?? 'غير محدد',
+                'address': data['address'] ?? data['Address'] ?? data['customerInfo']?['address'] ?? 'غير محدد',
                 'dateTime': _formatDateTime(data['createdAt'] ?? data['time'] ?? data['date']),
                 'payWay': data['payWay'] ?? data['PayWay'] ?? 0,
                 'amount': data['totalPrice'] ?? data['price'] ?? '0',
                 'status': data['orderStatus'] ?? data['status'] ?? 0,
-                'customerPhoneNumber': data['customerPhoneNumber'] ?? data['phoneNumber'],
+                'customerPhoneNumber': data['customerPhoneNumber'] ?? data['phoneNumber'] ?? data['customerPhone'] ?? data['customerInfo']?['phone'],
               };
             }).toList();
 
@@ -59,11 +73,12 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
 
               int getPriority(int status) {
                 switch (status) {
-                  case 3: return 0; // InProgress (Highest)
-                  case 0: return 1; // Pending
-                  case 4: return 2; // Completed
-                  case 6: return 3; // Rejected
-                  default: return 4; // Others
+                  case 2: return 0; // Accepted (Highest as requested)
+                  case 3: return 1; // InProgress
+                  case 0: return 2; // Pending
+                  case 4: return 3; // Completed
+                  case 6: return 4; // Rejected
+                  default: return 5; // Others
                 }
               }
 
@@ -75,7 +90,7 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
     } catch (e) {
       print("❌ Error fetching jobs: $e");
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && showLoading) setState(() => _isLoading = false);
     }
   }
 
@@ -109,30 +124,44 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
         titleTextStyle: const TextStyle(
           color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20 // Updated Text Color
         ),
+        actions: [
+          IconButton(
+            onPressed: () => _fetchMyJobs(showLoading: true),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _myJobs.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.history, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('لا توجد طلبات سابقة', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _myJobs.length,
-                  itemBuilder: (context, index) {
-                    return JobCard(
-                      job: _myJobs[index],
-                      onStatusUpdated: _fetchMyJobs, // Refresh list after update
-                    );
-                  },
-                ),
+          : RefreshIndicator(
+              onRefresh: () => _fetchMyJobs(showLoading: false),
+              child: _myJobs.isEmpty
+                  ? Center(
+                      child: SingleChildScrollView( // Added to allow pull-to-refresh even when empty
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.history, size: 64, color: Colors.grey),
+                            const SizedBox(height: 16),
+                            const Text('لا توجد طلبات سابقة', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                            const SizedBox(height: 100), // Spacing to ensure scrollability
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _myJobs.length,
+                      itemBuilder: (context, index) {
+                        return JobCard(
+                          job: _myJobs[index],
+                          onStatusUpdated: () => _fetchMyJobs(showLoading: true), // Refresh list after update
+                        );
+                      },
+                    ),
+            ),
     );
   }
 }
@@ -264,18 +293,61 @@ class _JobCardState extends State<JobCard> {
                   ),
                 ),
                 
+              // Track Order Button - Show for ALL orders
               const SizedBox(height: 16),
+              
+              // Only hide "Follow Up" (Update Status) button for completed/rejected if needed, 
+              // but user said "Track Order Location" button for ALL.
+              // I will keep the "Follow Up" button logic as is (hidden for 4/6) if that was the intent,
+              // but the user specific request " زرار تتبع موقع الطلب ده خليه لكل الطلبات" refers to the map button.
+              // However, the code block I'm replacing covers both.
+              
+              if ((widget.job['status'] is int ? widget.job['status'] : int.tryParse(widget.job['status'].toString()) ?? 0) != 4 && 
+                  (widget.job['status'] is int ? widget.job['status'] : int.tryParse(widget.job['status'].toString()) ?? 0) != 6) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: _showFollowUpDialog,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('متابعة الطلب'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+
+              // Track Location Button - Visible for ALL orders
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
+                    backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  onPressed: _showFollowUpDialog,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('متابعة الطلب'),
+                  onPressed: () {
+                    print("🚀 Opening Tracking for Job: ${widget.job}"); // Log Data
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TechnicianOrderTrackingScreen(
+                          orderId: widget.job['id'].toString(),
+                          customerName: widget.job['customer'],
+                          totalAmount: double.tryParse(widget.job['amount'].toString()) ?? 0.0,
+                          specialization: widget.job['service'],
+                          orderStatus: widget.job['status'] is int ? widget.job['status'] : int.tryParse(widget.job['status'].toString()) ?? 0,
+                          address: widget.job['address'],
+                          customerPhone: widget.job['customerPhoneNumber'],
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.map),
+                  label: const Text('مراحل الطلب'),
                 ),
               ),
             ],

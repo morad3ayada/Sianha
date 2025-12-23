@@ -8,6 +8,7 @@ import '../core/api/api_constants.dart';
 
 import 'Technician/technician_home_screen.dart';
 import 'Merchant/trader_home_screen.dart';
+import '../auth/client_login_screen.dart';
 
 class TechnicianLoginScreen extends StatefulWidget {
   const TechnicianLoginScreen({super.key});
@@ -173,17 +174,6 @@ class _TechnicianLoginScreenState extends State<TechnicianLoginScreen> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              // زر العودة
-              Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_forward, color: Colors.black54),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-
               const SizedBox(height: 40),
 
               // الأيقونة
@@ -472,6 +462,28 @@ class _TechnicianLoginScreenState extends State<TechnicianLoginScreen> {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // زر تسجيل دخول كعميل
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ClientLoginScreen(),
+                    ),
+                  );
+                },
+                child: Text(
+                  'تسجيل الدخول كعميل',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.yellow[800],
+                  ),
+                ),
               ),
 
               const SizedBox(height: 20),

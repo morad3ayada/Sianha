@@ -336,7 +336,7 @@ class _MobileRepairTrackingPageState extends State<MobileRepairTrackingPage>
               const SizedBox(width: 20),
               _buildHeaderInfo(
                   "المبلغ",
-                  "${_totalAmount.toStringAsFixed(2)} ر.س",
+                  "${_totalAmount.toStringAsFixed(2)} جنية",
                   Icons.attach_money_rounded),
             ],
           ),

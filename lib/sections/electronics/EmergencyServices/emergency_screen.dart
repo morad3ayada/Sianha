@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:my_service_app/home/home_sections.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../../../core/api/api_client.dart';
@@ -335,7 +336,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           _isSubmitting = false;
         });
 
-        // Show success and navigate
+        // Show success and return to Home
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('تم إنشاء طلب الطوارئ بنجاح'),
@@ -343,16 +344,9 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           ),
         );
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderTrackingScreen(
-              orderId: orderId,
-              customerName: _phoneController.text,
-              totalAmount: finalPrice,
-              specialization: _selectedCategoryName ?? '',
-            ),
-          ),
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreens()),
+          (route) => false,
         );
       }
     } catch (e) {

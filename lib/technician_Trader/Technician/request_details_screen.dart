@@ -527,19 +527,13 @@ class RequestDetailsScreen extends StatelessWidget {
 
                           if (context.mounted) {
                             Navigator.pop(context); // Close Dialog
-                            _updateRequestStatus('accepted');
                             
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('تم قبول الطلب بسعر $price جنية')),
                             );
 
-                            // Navigate to Location Logic if needed (keeping original flow)
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => LocationScreen(request: request),
-                              ),
-                            );
+                            // Pop back to home screen to trigger refresh
+                            Navigator.pop(context);
                           }
                         } catch (e) {
                           print("❌ Error Accepting Order: $e");

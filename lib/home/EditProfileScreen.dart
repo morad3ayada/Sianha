@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/api_client.dart';
 import '../core/api/api_constants.dart';
+import '../core/models/area_model.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -18,14 +19,62 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _governorateController = TextEditingController(); // Not sent in PUT as per request, but kept for UI
-  final TextEditingController _areaController = TextEditingController(); 
   final TextEditingController _addressController = TextEditingController();
+
+  // Dropdown selections
+  String? _selectedGovernorateId;
+  String? _selectedAreaId;
+
+  // Data for dropdowns
+  List<GovernorateWithAreas> _governoratesData = [];
+  bool _isLoadingAreas = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _fetchAreas();
+  }
+
+  Future<void> _fetchAreas() async {
+    setState(() => _isLoadingAreas = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      final client = ApiClient();
+      final response = await client.fetchAreas(token: token);
+
+      List<AreaModel> allAreas = response.map((json) => AreaModel.fromJson(json)).toList();
+
+      // Group areas
+      Map<String, List<AreaModel>> groupedAreas = {};
+      for (var area in allAreas) {
+        if (!groupedAreas.containsKey(area.governorateName)) {
+          groupedAreas[area.governorateName] = [];
+        }
+        groupedAreas[area.governorateName]!.add(area);
+      }
+
+      List<GovernorateWithAreas> governorates = [];
+      groupedAreas.forEach((govName, areas) {
+        governorates.add(GovernorateWithAreas(
+          governorateId: areas.first.governorateId,
+          governorateName: govName,
+          areas: areas,
+        ));
+      });
+
+      if (mounted) {
+        setState(() {
+          _governoratesData = governorates;
+          _isLoadingAreas = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching areas: $e");
+      if (mounted) setState(() => _isLoadingAreas = false);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -43,9 +92,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
            _nameController.text = response['fullName'] ?? response['name'] ?? '';
            _phoneController.text = response['phoneNumber'] ?? response['phone'] ?? '';
            _addressController.text = response['address'] ?? '';
-           // Populate others if available
-           _governorateController.text = response['governorate'] ?? ''; 
-           _areaController.text = response['area'] ?? '';
+           
+           // Handle nullable IDs safely
+           if (response['governorateId'] != null) {
+              _selectedGovernorateId = response['governorateId'].toString();
+           }
+           if (response['areaId'] != null) {
+              _selectedAreaId = response['areaId'].toString();
+           }
          });
       }
     } catch (e) {
@@ -68,6 +122,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "fullName": _nameController.text,
         "phoneNumber": _phoneController.text,
         "address": _addressController.text,
+        if (_selectedGovernorateId != null) "governorateId": _selectedGovernorateId,
+        if (_selectedAreaId != null) "areaId": _selectedAreaId,
       };
 
       await client.put(ApiConstants.profile, payload, token: token);
@@ -96,8 +152,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _governorateController.dispose();
-    _areaController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -108,7 +162,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       backgroundColor: Colors.grey[50], // Matching app theme
       appBar: AppBar(
         title: const Text(
-          "تعديل البيانات",
+          "تعديل الملف الشخصي",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -161,15 +215,73 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 16),
               _buildTextField("رقم الهاتف", Icons.phone_android, _phoneController, isPhone: true),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: _buildTextField("المحافظة", Icons.location_city, _governorateController)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildTextField("المنطقة", Icons.map_outlined, _areaController)),
-                ],
-              ),
+              
+              // Governorate Dropdown
+              _isLoadingAreas 
+                  ? const Center(child: CircularProgressIndicator())
+                  : DropdownButtonFormField<String>(
+                      value: _selectedGovernorateId,
+                      items: _governoratesData.map((gov) {
+                        return DropdownMenuItem(
+                          value: gov.governorateId,
+                          child: Text(gov.governorateName),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedGovernorateId = val;
+                          _selectedAreaId = null; // Reset area
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: "المحافظة",
+                        prefixIcon: Icon(Icons.location_city, color: Colors.grey[600]),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.yellow[700]!)),
+                      ),
+                      validator: (val) => val == null ? "مطلوب" : null,
+                    ),
+
               const SizedBox(height: 16),
-              _buildTextField("العنوان التفصيلي", Icons.home_work_outlined, _addressController),
+
+              // Area Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedAreaId,
+                items: (_selectedGovernorateId == null) 
+                    ? [] 
+                    : _governoratesData
+                        .firstWhere((g) => g.governorateId == _selectedGovernorateId, orElse: () => GovernorateWithAreas(governorateId: "", governorateName: "", areas: []))
+                        .areas
+                        .map((area) {
+                          return DropdownMenuItem(
+                            value: area.id,
+                            child: Text(area.name),
+                          );
+                        }).toList(),
+                onChanged: _selectedGovernorateId == null 
+                    ? null 
+                    : (val) {
+                        setState(() {
+                          _selectedAreaId = val;
+                        });
+                      },
+                decoration: InputDecoration(
+                  labelText: "المنطقة",
+                  prefixIcon: Icon(Icons.map_outlined, color: Colors.grey[600]),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.yellow[700]!)),
+                ),
+                validator: (val) => val == null ? "مطلوب" : null,
+              ),
+
+              const SizedBox(height: 16),
+              _buildTextField("اسم الشارع / تفاصيل العنوان", Icons.home_work_outlined, _addressController),
               
               const SizedBox(height: 40),
 

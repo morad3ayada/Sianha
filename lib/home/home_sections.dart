@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '/sections/car/car_maintenance_section.dart';
 import '/sections/shop_list_screen.dart';
 import '/sections/mobile/mobile_shop_screen.dart';
@@ -204,8 +205,9 @@ class _HomeContentState extends State<HomeContent> {
     BuildContext context,
     String title,
     IconData icon,
-    Widget? page,
-  ) {
+    Widget? page, {
+    String? imageUrl,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -252,11 +254,25 @@ class _HomeContentState extends State<HomeContent> {
                   color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: Colors.black87,
-                ),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(strokeWidth: 2),
+                          errorWidget: (context, url, error) =>
+                              Icon(icon, size: 32, color: Colors.black87),
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        size: 32,
+                        color: Colors.black87,
+                      ),
               ),
               const SizedBox(height: 12),
               Text(
@@ -360,26 +376,13 @@ class _HomeContentState extends State<HomeContent> {
                 ],
               ),
               const Spacer(),
-              Row(
-                children: [
-                  _buildIconButton(
-                    Icons.phone_outlined,
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const ComplaintScreen()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconButton(
-                    Icons.notifications_outlined,
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const NotificationsScreen()),
-                    ),
-                  ),
-                ],
+              _buildIconButton(
+                Icons.phone_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ComplaintScreen()),
+                ),
               ),
             ],
           ),
@@ -506,6 +509,7 @@ class _HomeContentState extends State<HomeContent> {
                               category.name,
                               config['icon'],
                               config['page'],
+                              imageUrl: category.fullImageUrl,
                             );
                           },
                         ),

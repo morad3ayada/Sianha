@@ -371,7 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       List<Map<String, dynamic>> quickStats = [
                         {
                           'title': 'مبيعات اليوم',
-                          'value': '$_todaySales ر.س',
+                          'value': '$_todaySales جنية',
                           'icon': Icons.attach_money,
                           'color': Colors.green
                         },

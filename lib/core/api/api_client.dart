@@ -229,14 +229,25 @@ class ApiClient {
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body, {String? token}) async {
     final uri = Uri.parse(endpoint);
+    print("---------------- API REQUEST (PUT) ----------------");
+    print("PUT: $uri");
+    print("Headers: ${_getHeaders(token: token)}");
+    print("Body: ${jsonEncode(body)}");
+    print("---------------------------------------------------");
+
     try {
       final response = await _client.put(
         uri,
         headers: _getHeaders(token: token),
         body: jsonEncode(body),
       );
+      print("---------------- API RESPONSE (PUT) ----------------");
+      print("Status Code: ${response.statusCode}");
+      print("Body: ${response.body}");
+      print("----------------------------------------------------");
       return _handleResponse(response);
     } catch (e) {
+      print("API ERROR (PUT): $e");
       rethrow;
     }
   }

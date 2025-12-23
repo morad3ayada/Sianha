@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/api_constants.dart';
+import '../core/api/api_client.dart';
+import '../core/models/area_model.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -17,10 +19,76 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // Search & Filter
+  String _searchQuery = '';
+  String? _selectedGovernorateId;
+  String? _selectedAreaId;
+  List<GovernorateWithAreas> _governorates = [];
+  bool _isLoadingAreas = false;
+
   @override
   void initState() {
     super.initState();
     _fetchProducts();
+    _fetchAreas();
+  }
+
+  Future<void> _fetchAreas() async {
+    setState(() => _isLoadingAreas = true);
+    try {
+      final apiClient = ApiClient();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final response = await apiClient.get(ApiConstants.areas, token: token);
+
+      if (response is List) {
+        List<AreaModel> allAreas = response.map((json) => AreaModel.fromJson(json)).toList();
+        Map<String, List<AreaModel>> grouped = {};
+        for (var area in allAreas) {
+           if (!grouped.containsKey(area.governorateName)) {
+             grouped[area.governorateName] = [];
+           }
+           grouped[area.governorateName]!.add(area);
+        }
+        
+        List<GovernorateWithAreas> result = [];
+        grouped.forEach((govName, areas) {
+          result.add(GovernorateWithAreas(
+            governorateId: areas.first.governorateId,
+            governorateName: govName,
+            areas: areas,
+          ));
+        });
+
+        if (mounted) {
+          setState(() {
+            _governorates = result;
+            _isLoadingAreas = false;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching areas: $e");
+      if (mounted) setState(() => _isLoadingAreas = false);
+    }
+  }
+
+  List<dynamic> get _filteredProducts {
+    return _products.where((product) {
+      // 1. Search Filter
+      final name = (product['name'] ?? product['nameArabic'] ?? product['productName'] ?? '').toString().toLowerCase();
+      final matchesSearch = _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
+
+      // 2. Governorate Filter
+      final matchesGov = _selectedGovernorateId == null || 
+                         (product['governorateId'] != null && product['governorateId'].toString() == _selectedGovernorateId);
+
+      // 3. Area Filter
+      final matchesArea = _selectedAreaId == null || 
+                          (product['areaId'] != null && product['areaId'].toString() == _selectedAreaId);
+
+      return matchesSearch && matchesGov && matchesArea;
+    }).toList();
   }
 
   Future<void> _fetchProducts() async {
@@ -103,6 +171,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine available areas
+    List<AreaModel> availableAreas = [];
+    if (_selectedGovernorateId != null && _governorates.isNotEmpty) {
+      try {
+        final gov = _governorates.firstWhere(
+          (g) => g.governorateId == _selectedGovernorateId,
+          orElse: () => _governorates.first, // Fallback safe
+        );
+        if (gov.governorateId == _selectedGovernorateId) {
+            availableAreas = gov.areas;
+        }
+      } catch (_) {}
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -129,52 +211,161 @@ class _ProductsScreenState extends State<ProductsScreen> {
         elevation: 4,
          shadowColor: Colors.yellow.withOpacity(0.3),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text('حدث خطأ: $_error'))
-              : _products.isEmpty
-                  ? const Center(child: Text('لا توجد منتجات متاحة حالياً'))
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(16),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.75,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
-                      itemCount: _products.length,
-                      itemBuilder: (context, index) {
-                        final item = _products[index];
-                        // Try multiple keys for name
-                        final name = item['name'] ?? 
-                                     item['nameArabic'] ?? 
-                                     item['productName'] ?? 
-                                     'منتج غير معروف';
-                                     
-                        // Try multiple keys for image
-                        String imagePath = item['imageUrl'] ?? 
-                                           item['imagePath'] ?? 
-                                           item['image'] ?? 
-                                           '';
-                        
-                        // Handle relative paths
-                        if (imagePath.isNotEmpty && !imagePath.startsWith('http')) {
-                          // Ensure no double slash if baseUrl ends with / and path starts with /
-                          if (ApiConstants.baseUrl.endsWith('/') && imagePath.startsWith('/')) {
-                            imagePath = ApiConstants.baseUrl + imagePath.substring(1);
-                          } else if (!ApiConstants.baseUrl.endsWith('/') && !imagePath.startsWith('/')) {
-                             imagePath = "${ApiConstants.baseUrl}/$imagePath";
-                          } else {
-                             imagePath = "${ApiConstants.baseUrl}$imagePath";
-                          }
-                        }
-                        
-                        final price = item['price'] ?? 0;
-                        
-                        return _buildProductCard(item, name, imagePath, price);
-                      },
+      body: Column(
+        children: [
+          // Search & Filters Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white,
+            child: Column(
+              children: [
+                // Search Bar
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'بحث عن منتج...',
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Filters Row
+                Row(
+                  children: [
+                    // Governorate Dropdown
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedGovernorateId,
+                        decoration: InputDecoration(
+                          labelText: 'المحافظة',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: _governorates.map((g) {
+                          return DropdownMenuItem(
+                            value: g.governorateId,
+                            child: Text(
+                              g.governorateName,
+                              style: const TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedGovernorateId = val;
+                            _selectedAreaId = null;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Area Dropdown
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedAreaId,
+                        decoration: InputDecoration(
+                          labelText: 'المنطقة',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: availableAreas.map((a) {
+                          return DropdownMenuItem(
+                            value: a.id,
+                            child: Text(
+                              a.name,
+                              style: const TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: _selectedGovernorateId == null
+                            ? null
+                            : (val) {
+                                setState(() {
+                                  _selectedAreaId = val;
+                                });
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Products Grid
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(child: Text('حدث خطأ: $_error'))
+                    : _filteredProducts.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.search_off, size: 60, color: Colors.grey[300]),
+                                const SizedBox(height: 16),
+                                const Text('لا توجد منتجات تطابق البحث', style: TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                            itemCount: _filteredProducts.length,
+                            itemBuilder: (context, index) {
+                              final item = _filteredProducts[index];
+                              // Try multiple keys for name
+                              final name = item['name'] ?? 
+                                           item['nameArabic'] ?? 
+                                           item['productName'] ?? 
+                                           'منتج غير معروف';
+                                           
+                              // Try multiple keys for image
+                              String imagePath = item['imageUrl'] ?? 
+                                                 item['imagePath'] ?? 
+                                                 item['image'] ?? 
+                                                 '';
+                              
+                              // Handle relative paths
+                              if (imagePath.isNotEmpty && !imagePath.startsWith('http')) {
+                                if (ApiConstants.baseUrl.endsWith('/') && imagePath.startsWith('/')) {
+                                  imagePath = ApiConstants.baseUrl + imagePath.substring(1);
+                                } else if (!ApiConstants.baseUrl.endsWith('/') && !imagePath.startsWith('/')) {
+                                   imagePath = "${ApiConstants.baseUrl}/$imagePath";
+                                } else {
+                                   imagePath = "${ApiConstants.baseUrl}$imagePath";
+                                }
+                              }
+                              
+                              final price = item['price'] ?? 0;
+                              
+                              return _buildProductCard(item, name, imagePath, price);
+                            },
+                          ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -363,8 +554,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
       );
 
       final orderData = {
-        "title": "طلب منتج: ${product['name'] ?? product['nameArabic'] ?? product['productName']}",
-        "problemDescription": "none",
+        "title": "طلب من متجر: ${product['name'] ?? product['nameArabic'] ?? product['productName']}",
+        "problemDescription": "طلب شراء منتج",
         "price": ((product['price'] ?? 0) * quantity).toInt(),
         "cost": 0,
         "costRate": 0,

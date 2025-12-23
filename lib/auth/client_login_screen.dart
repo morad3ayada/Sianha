@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'client_register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -78,9 +79,44 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // عرض الخطأ
-        // يمكن تحسين رسالة الخطأ بناءً على نوع الـ Exception
-        _showErrorDialog('فشل تسجيل الدخول: ${e.toString()}');
+        String errorMessage = 'فشل تسجيل الدخول';
+        String errorString = e.toString();
+
+        if (errorString.contains("Error 401")) {
+            errorMessage = "رقم الهاتف أو كلمة المرور غير صحيحة";
+            
+            // محاولة استخراج الرسالة من السيرفر اذا وجدت
+            try {
+              int jsonStartIndex = errorString.indexOf('{');
+              if (jsonStartIndex != -1) {
+                  String jsonStr = errorString.substring(jsonStartIndex);
+                   var jsonBody = jsonDecode(jsonStr);
+                   if (jsonBody is Map && jsonBody['message'] != null) {
+                       if (jsonBody['message'].toString().contains("Invalid credentials")) {
+                          errorMessage = "رقم الهاتف أو كلمة المرور غير صحيحة";
+                       } else {
+                          errorMessage = jsonBody['message'];
+                       }
+                   }
+              }
+            } catch (_) {}
+        } else {
+           try {
+              int jsonStartIndex = errorString.indexOf('{');
+              if (jsonStartIndex != -1) {
+                 String jsonStr = errorString.substring(jsonStartIndex);
+                 var jsonBody = jsonDecode(jsonStr);
+                 if (jsonBody is Map && jsonBody['message'] != null) {
+                     errorMessage = jsonBody['message'];
+                 }
+              } else {
+                 errorMessage = errorString.replaceAll("Exception:", "").trim();
+              }
+           } catch (_) {
+              errorMessage = errorString;
+           }
+        }
+        _showErrorDialog(errorMessage);
       }
     } finally {
       if (mounted) {

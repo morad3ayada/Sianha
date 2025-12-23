@@ -288,7 +288,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              '${(_statsData['totalEarnings'] as double).toStringAsFixed(2)} ر.س',
+              '${(_statsData['totalEarnings'] as double).toStringAsFixed(2)} جنية',
               style: const TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -307,9 +307,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildEarningItem('الإجمالي',
-                    '${(_statsData['totalRevenue'] ?? 0.0).toStringAsFixed(2)} ر.س'),
+                    '${(_statsData['totalRevenue'] ?? 0.0).toStringAsFixed(2)} جنية'),
                 _buildEarningItem(
-                    'الخصومات (40%)', '${(_statsData['totalDiscounts'] as double).toStringAsFixed(2)} ر.س'),
+                    'الخصومات (40%)', '${(_statsData['totalDiscounts'] as double).toStringAsFixed(2)} جنية'),
                 _buildEarningItem(
                     'الطلبات', _statsData['completedOrders'].toString()),
               ],
@@ -604,7 +604,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${transaction['amount']} ر.س',
+                '${transaction['amount']} جنية',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: transaction['type'] == 'earning'

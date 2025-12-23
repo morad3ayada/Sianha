@@ -325,13 +325,13 @@ class _LocationScreenState extends State<LocationScreen> {
                     const SizedBox(height: 16),
                     _buildDistanceInfo('المسافة', '2.5 كم'),
                     _buildDistanceInfo('الوقت المتوقع', '10 دقائق'),
-                    _buildDistanceInfo('التكلفة التقريبية', '15 ر.س'),
+                    _buildDistanceInfo('التكلفة التقريبية', '15 جنية'),
 
                     // عرض السعر إذا تم تحديده
                     if (_priceController.text.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildPriceInfo(
-                          '💰 السعر المحدد', '${_priceController.text} ر.س'),
+                          '💰 السعر المحدد', '${_priceController.text} جنية'),
                     ],
 
                     const SizedBox(height: 20),
@@ -547,7 +547,7 @@ class _LocationScreenState extends State<LocationScreen> {
                       const Text('ملخص الطلب',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       if (_priceController.text.isNotEmpty)
-                        _buildPriceRow('السعر', '${_priceController.text} ر.س'),
+                        _buildPriceRow('السعر', '${_priceController.text} جنية'),
                       if (_repairDetailsController.text.isNotEmpty)
                         _buildPriceRow('الشرح', _repairDetailsController.text),
                       if (_selectedImages.isNotEmpty)
@@ -824,7 +824,7 @@ class _LocationScreenState extends State<LocationScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(
-              'تم إنهاء الخدمة بنجاح. طريقة الدفع: $paymentMethod - السعر: ${_priceController.text} ر.س')),
+              'تم إنهاء الخدمة بنجاح. طريقة الدفع: $paymentMethod - السعر: ${_priceController.text} جنية')),
     );
   }
 

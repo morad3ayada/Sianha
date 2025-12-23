@@ -14,20 +14,10 @@ class _OrdersScreenState extends State<OrdersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _currentTabIndex = 0;
-  String? _selectedRejectionReason;
   bool _isLoading = true;
 
   List<Map<String, dynamic>> currentOrders = [];
   List<Map<String, dynamic>> previousOrders = [];
-
-  // قائمة أسباب الرفض
-  final List<String> rejectionReasons = [
-    'المنتج غير متوفر في المخزن',
-    'العنوان خارج نطاق التوصيل',
-    'مشكلة في طريقة الدفع',
-    'العميل طلب الإلغاء',
-    'أسباب أخرى'
-  ];
 
   @override
   void initState() {
@@ -147,16 +137,38 @@ class _OrdersScreenState extends State<OrdersScreen>
     final address = apiOrder['address'] ?? apiOrder['shippingAddress'] ?? '';
     final price = apiOrder['price']?.toString() ?? apiOrder['totalAmount']?.toString() ?? '0';
     final title = apiOrder['title'] ?? ''; 
-
-    final status = apiOrder['orderStatus'] ?? apiOrder['status'] ?? 0;
     final date = apiOrder['orderDate'] ?? apiOrder['createdAt'] ?? '';
+
+    final rawStatus = apiOrder['orderStatus'] ?? apiOrder['status'];
+
+    // Robust Status Mapping
+    int statusId = -1;
+    if (rawStatus is int) {
+      statusId = rawStatus;
+    } else if (rawStatus is String) {
+      // Try parsing as int first
+      if (int.tryParse(rawStatus) != null) {
+        statusId = int.parse(rawStatus);
+      } else {
+        // Handle Enum Strings
+        switch (rawStatus.toLowerCase()) {
+          case 'pending': statusId = 0; break;
+          case 'assigned': statusId = 1; break;
+          case 'accepted': statusId = 2; break;
+          case 'inprogress': statusId = 3; break;
+          case 'completed': statusId = 4; break;
+          case 'cancelled': statusId = 5; break;
+          case 'rejected': statusId = 6; break;
+          default: statusId = -1;
+        }
+      }
+    }
     
     // Status Color & Text Mapping
     Color statusColor = Colors.grey;
-    String statusText = status.toString();
+    String statusText = 'غير معروف';
     
-    int s = int.tryParse(status.toString()) ?? -1;
-    switch (s) {
+    switch (statusId) {
       case 0: // Pending
         statusColor = Color(0xFFFFD700);
         statusText = 'قيد الانتظار';
@@ -186,7 +198,7 @@ class _OrdersScreenState extends State<OrdersScreen>
         statusText = 'مرفوض';
         break;
       default:
-        statusText = 'غير معروف ($s)';
+        statusText = 'غير معروف';
     }
 
     // Items Mapping
@@ -230,7 +242,8 @@ class _OrdersScreenState extends State<OrdersScreen>
       'deliveryAgent': deliveryAgent,
       'notes': apiOrder['notes'] ?? '',
       'preparationTime': apiOrder['preparationTime'] ?? '',
-      'rawStatus': status, 
+      'rejectionReason': apiOrder['rejectionReason'] ?? '',
+      'rawStatus': statusId, 
     };
   }
 
@@ -275,7 +288,7 @@ class _OrdersScreenState extends State<OrdersScreen>
           },
         ),
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(screenSize.height * 0.12),
+          preferredSize: Size.fromHeight(screenSize.height * 0.15), // Increased height slightly
           child: Container(
             color: Color(0xFFFFD700),
             child: Column(
@@ -347,27 +360,37 @@ class _OrdersScreenState extends State<OrdersScreen>
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          width: 50, // Added fixed width for larger circle
+          height: 50, // Added fixed height for larger circle
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.black,
             shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
           child: Text(
             value,
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: 14, // Increased font size
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-        SizedBox(height: 4),
+        SizedBox(height: 8),
         Text(
           label,
           style: TextStyle(
             color: Colors.black87,
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
+            fontSize: 12, // Slightly larger font
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -627,88 +650,69 @@ class _OrdersScreenState extends State<OrdersScreen>
             ),
 
           // أزرار التحكم للطلبات الحالية
-          // إذا كانت الحالة 4 (مكتمل)، لا تظهر أي أزرار
-          if (isCurrent && order['rawStatus'].toString() != '4')
+          // تظهر فقط للطلبات بحالة (0) "قيد الانتظار" أو (1) "تم التعيين"
+          if (isCurrent && (order['rawStatus'].toString() == '0' || order['rawStatus'].toString() == '1'))
             Container(
-              padding: EdgeInsets.all(16),
-              child: order['rawStatus'].toString() == '3'
-                  ? // حالة قيد التنفيذ (3) -> زر إتمام الطلب
-                  Container(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        onPressed: () {
-                          // إتمام الطلب (تحويل للحالة 4)
-                          _updateOrderStatus(order, 4);
-                        },
-                        child: Text('إتمام الطلب'),
                       ),
-                    )
-                  : // حالات أخرى (جديد/قيد الانتظار) -> قبول/رفض
-                  Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () {
-                              _showRejectionDialog(context, order);
-                            },
-                            child: Text('رفض الطلب'),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFFFFD700),
-                              foregroundColor: Colors.black,
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () {
-                              _showAcceptConfirmationDialog(context, order);
-                            },
-                            child: Text('قبول الطلب'),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        // زر تتبع الطلب
-                        Container(
-                          width: 50,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () {
-                              _navigateToTrackingScreen(context, order);
-                            },
-                            child: Icon(Icons.track_changes, size: 18),
-                          ),
-                        ),
-                      ],
+                      onPressed: () {
+                        _showRejectionDialog(context, order);
+                      },
+                      child: Text('رفض الطلب'),
                     ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFFD700),
+                        foregroundColor: Colors.black,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        _showAcceptConfirmationDialog(context, order);
+                      },
+                      child: Text('قبول الطلب'),
+                    ),
+                  ),
+                ],
+              ),
             ),
+
+          // زر تتبع الطلب (عام لكل الطلبات)
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                _navigateToTrackingScreen(context, order);
+              },
+              icon: Icon(Icons.track_changes, size: 20),
+              label: Text('متابعة الطلب'),
+            ),
+          ),
 
           // Rating for completed orders
           if (!isCurrent && order.containsKey('rating'))
@@ -837,107 +841,62 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
-  void _showRejectionDialog(BuildContext context, Map<String, dynamic> order) {
-    String rejectionReason = '';
-    String customReason = '';
+    void _showRejectionDialog(BuildContext context, Map<String, dynamic> order) {
+    final TextEditingController reasonController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('رفض الطلب'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('اختر سبب رفض الطلب ${order['id']}:'),
-                  SizedBox(height: 16),
-
-                  // قائمة أسباب الرفض
-                  Column(
-                    children: rejectionReasons.map((reason) {
-                      return RadioListTile<String>(
-                        value: reason,
-                        groupValue: rejectionReason,
-                        title: Text(reason),
-                        onChanged: (value) {
-                          setDialogState(() {
-                            rejectionReason = value!;
-                            if (value != 'أسباب أخرى') {
-                              customReason = '';
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-
-                  // حقل النص لأسباب أخرى
-                  if (rejectionReason == 'أسباب أخرى')
-                    Column(
-                      children: [
-                        SizedBox(height: 12),
-                        TextField(
-                          decoration: InputDecoration(
-                            labelText: 'اذكر السبب',
-                            border: OutlineInputBorder(),
-                            hintText: 'اكتب سبب الرفض هنا...',
-                          ),
-                          onChanged: (value) {
-                            customReason = value;
-                          },
-                          maxLines: 3,
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  setDialogState(() {
-                    rejectionReason = '';
-                    customReason = '';
-                  });
-                  Navigator.pop(context);
-                },
-                child: Text('إلغاء'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.cancel, color: Colors.red),
+              SizedBox(width: 8),
+              Text('رفض الطلب ${order['id']}'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('يرجى كتابة سبب الرفض:'),
+              SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'اكتب هنا...',
+                  border: OutlineInputBorder(),
                 ),
-                onPressed: () {
-                  if (rejectionReason.isEmpty) {
-                    _showErrorSnackBar('يرجى اختيار سبب الرفض');
-                    return;
-                  }
-
-                  if (rejectionReason == 'أسباب أخرى' && customReason.isEmpty) {
-                    _showErrorSnackBar('يرجى كتابة سبب الرفض');
-                    return;
-                  }
-
-                  final String finalReason = rejectionReason == 'أسباب أخرى'
-                      ? customReason
-                      : rejectionReason;
-
-                  _rejectOrder(order, finalReason);
-                  Navigator.pop(context);
-
-                  // إظهار رسالة نجاح
-                  _showSuccessDialog(context, order['id']);
-                },
-                child: Text('إرسال الرفض'),
               ),
             ],
-          );
-        },
-      ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('إلغاء', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final reason = reasonController.text.trim();
+                if (reason.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('يرجى كتابة سبب الرفض')),
+                  );
+                  return;
+                }
+                Navigator.pop(context);
+                await _updateOrderStatus(order, newStatus: 6, reason: reason);
+              },
+              child: Text('تأكيد الرفض'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1008,8 +967,8 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
-  // تحديث حالة الطلب عبر API
-  Future<void> _updateOrderStatus(Map<String, dynamic> order, int newStatus) async {
+  // تحديث حالة الطلب عبر API المتخصص (Accept/Reject)
+  Future<void> _updateOrderStatus(Map<String, dynamic> order, {int? newStatus, String? reason}) async {
     try {
       // Show loading
       showDialog(
@@ -1027,18 +986,47 @@ class _OrdersScreenState extends State<OrdersScreen>
       }
 
       final orderId = order['rawId'];
-
       final apiClient = ApiClient();
-      print('Updating Order $orderId to status $newStatus');
-      
-      final response = await apiClient.put(
-        ApiConstants.merchantUpdateOrderStatus,
-        {
-          "orderId": orderId,
-          "status": newStatus
-        },
-        token: token,
-      );
+      dynamic response;
+
+      if (newStatus == 2) {
+        // متطلب جديد: Accept Order API
+        // curl -X 'POST' '.../api/Merchants/accept-order/{id}'
+        print('Accepting Order $orderId');
+        response = await apiClient.post(
+          "${ApiConstants.merchantAcceptOrder}/$orderId",
+          {},
+          token: token,
+        );
+      } else if (newStatus == 6) {
+        // متطلب جديد: Reject Order API
+        // curl -X 'POST' '.../api/Merchants/reject-order' with body
+        print('Rejecting Order $orderId for reason: $reason');
+        response = await apiClient.post(
+          ApiConstants.merchantRejectOrder,
+          {
+            "orderId": orderId.toString(),
+            "rejectionReason": reason ?? "لا يوجد سبب محدد"
+          },
+          token: token,
+        );
+      } else if (newStatus == 4) {
+        // حالة إتمام الطلب (Complete Order)
+        // نستخدم الـ API العام لتحديث الحالة
+        print('Completing Order $orderId');
+        response = await apiClient.post(
+          ApiConstants.merchantUpdateOrderStatus,
+          {
+            "orderId": orderId.toString(),
+            "status": 4,
+            "price": 0
+          },
+          token: token,
+        );
+      } else {
+        // fallback to old generic update if needed
+        return;
+      }
 
       Navigator.pop(context); // Hide loading
 
@@ -1046,10 +1034,15 @@ class _OrdersScreenState extends State<OrdersScreen>
          // تحديث القائمة
          await _fetchOrders();
          
+         String message = 'تم تحديث حالة الطلب';
+         if (newStatus == 2) message = 'تم قبول الطلب بنجاح';
+         if (newStatus == 6) message = 'تم رفض الطلب بنجاح';
+         if (newStatus == 4) message = 'تم إتمام الطلب بنجاح';
+
          ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(
-             content: Text(newStatus == 4 ? 'تم قبول الطلب بنجاح' : 'تم رفض الطلب'), 
-             backgroundColor: newStatus == 4 ? Colors.green : Colors.red
+             content: Text(message), 
+             backgroundColor: (newStatus == 2 || newStatus == 4) ? Colors.green : Colors.red
            ),
          );
       } else {
@@ -1091,7 +1084,7 @@ class _OrdersScreenState extends State<OrdersScreen>
             ),
             onPressed: () {
               Navigator.pop(context);
-              _updateOrderStatus(order, 3); // 3 = InProgress (Accepted)
+              _updateOrderStatus(order, newStatus: 2); // 2 = Accepted
             },
             child: Text('نعم، قبول'),
           ),
@@ -1102,8 +1095,8 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   // تم تحديث دالة الرفض لاستخدام API
   void _rejectOrder(Map<String, dynamic> order, String reason) {
-    // استدعاء API الرفض (Status 6)
-    _updateOrderStatus(order, 6);
+    // استدعاء API الرفضالمتخصص
+    _updateOrderStatus(order, newStatus: 6, reason: reason);
   }
 
   // Navigate to order tracking screen

@@ -9,6 +9,7 @@ import 'request_details_screen.dart';
 import 'location_screen.dart';
 import 'notifications_screen.dart';
 import 'my_jobs_screen.dart';
+import 'TechnicianReportScreen.dart';
 
 class TechnicianHomeScreen extends StatefulWidget {
   const TechnicianHomeScreen({super.key});
@@ -176,6 +177,17 @@ class _TechnicianHomeScreenState extends State<TechnicianHomeScreen> {
                   onPressed: () {
                     _fetchMyOrders();
                     _fetchTodayStats();
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.report_problem_outlined, color: Colors.black),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TechnicianReportScreen(),
+                      ),
+                    );
                   },
                 ),
                 // Notification Icon Removed
@@ -398,6 +410,10 @@ class _TechnicianHomeScreenState extends State<TechnicianHomeScreen> {
       MaterialPageRoute(
         builder: (context) => RequestDetailsScreen(request: normalizedRequest),
       ),
-    );
+    ).then((_) {
+      // Refresh orders when returning from details screen
+      _fetchMyOrders();
+      _fetchTodayStats();
+    });
   }
 }

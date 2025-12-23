@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/models/area_model.dart';
-import 'OrderTrackingScreen.dart';
 import 'LocationPickerSimulator.dart';
 
 class AddOrderScreen extends StatefulWidget {
@@ -369,7 +368,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       // نجاح
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم إرسال الطلب بنجاح! جاري التوجيه...'),
+          content: Text('✅ تم إنشاء الطلب بنجاح'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -378,17 +377,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       await Future.delayed(const Duration(seconds: 2));
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderTrackingScreen(
-              orderId: orderId,
-              customerName: customerName ?? 'العميل',
-              totalAmount: 150.0,
-              specialization: 'الطلب الجديد',
-            ),
-          ),
-        );
+        // Return to Home (Root)
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

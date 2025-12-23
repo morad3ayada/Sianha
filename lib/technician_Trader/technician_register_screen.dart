@@ -104,6 +104,11 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
            }
         }
         _governoratesList = uniqueGovs.values.toList();
+        
+        // Trigger UI update
+        if (mounted) {
+          setState(() {});
+        }
       }
     } catch (e) {
       print("Error fetching areas: $e");
@@ -126,6 +131,11 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
           final catName = cat['name'] ?? cat['Name'] ?? 'Unknown';
           final catId = cat['id'] ?? cat['Id'] ?? 'Unknown';
           print("📁 Category $i: $catName (ID: $catId)");
+        }
+        
+        // Trigger UI update
+        if (mounted) {
+          setState(() {});
         }
       } else {
         print("❌ NOT a List: ${categoriesResponse.runtimeType}");
@@ -154,6 +164,11 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
           final subCatId = subCat['id'] ?? subCat['Id'] ?? 'Unknown';
           final parentId = subCat['serviceCategoryId'] ?? subCat['ServiceCategoryId'] ?? 'Unknown';
           print("📄 SubCategory $i: $subCatName (ID: $subCatId, Parent: $parentId)");
+        }
+        
+        // Trigger UI update
+        if (mounted) {
+          setState(() {});
         }
       } else {
         print("❌ SubCats NOT a List: ${subCatsResponse.runtimeType}");
@@ -688,14 +703,17 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: firstNameController,
+                              style: const TextStyle(fontSize: 16),
                               decoration: InputDecoration(
                                 labelText: 'الاسم الأول *',
+                                labelStyle: const TextStyle(fontSize: 16),
                                 prefixIcon: const Icon(Icons.person),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 filled: true,
                                 fillColor: Colors.grey[50],
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               ),
                               validator: (v) => v == null || v.isEmpty
                                   ? 'أدخل الاسم الأول'
@@ -706,14 +724,17 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: middleNameController,
+                              style: const TextStyle(fontSize: 16),
                               decoration: InputDecoration(
                                 labelText: 'الاسم الأوسط',
+                                labelStyle: const TextStyle(fontSize: 16),
                                 prefixIcon: const Icon(Icons.person_outline),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 filled: true,
                                 fillColor: Colors.grey[50],
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               ),
                             ),
                           ),
@@ -721,14 +742,17 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: lastNameController,
+                              style: const TextStyle(fontSize: 16),
                               decoration: InputDecoration(
                                 labelText: 'الاسم الأخير *',
+                                labelStyle: const TextStyle(fontSize: 16),
                                 prefixIcon: const Icon(Icons.person),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 filled: true,
                                 fillColor: Colors.grey[50],
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               ),
                               validator: (v) => v == null || v.isEmpty
                                   ? 'أدخل الاسم الأخير'
@@ -763,8 +787,10 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                       TextFormField(
                         controller: phoneController,
                         keyboardType: TextInputType.phone,
+                        style: const TextStyle(fontSize: 16),
                         decoration: InputDecoration(
                           labelText: 'رقم التليفون *',
+                          labelStyle: const TextStyle(fontSize: 16),
                           prefixIcon: const Icon(Icons.phone),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -772,6 +798,7 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                           filled: true,
                           fillColor: Colors.grey[50],
                           hintText: '01XXXXXXXXX',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                         ),
                         validator: _validateEgyptianPhone,
                       ),
@@ -779,22 +806,27 @@ class _TechnicianRegisterScreenState extends State<TechnicianRegisterScreen> {
                       TextFormField(
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(fontSize: 16),
                         decoration: InputDecoration(
                           labelText: 'البريد الإلكتروني (اختياري)',
+                          labelStyle: const TextStyle(fontSize: 16),
                           prefixIcon: const Icon(Icons.email),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
                           fillColor: Colors.grey[50],
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                         ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: passwordController,
                         obscureText: true,
+                        style: const TextStyle(fontSize: 16),
                         decoration: InputDecoration(
                           labelText: 'كلمة المرور *',
+                          labelStyle: const TextStyle(fontSize: 16),
                           prefixIcon: const Icon(Icons.lock),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),

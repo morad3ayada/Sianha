@@ -39,7 +39,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     {
       'id': '4',
       'title': 'دفع مكتمل',
-      'message': 'تم استلام دفعة بقيمة 250 ر.س من العميل فاطمة أحمد',
+      'message': 'تم استلام دفعة بقيمة 250 جنية من العميل فاطمة أحمد',
       'time': 'منذ يومين',
       'type': 'payment',
       'read': true,

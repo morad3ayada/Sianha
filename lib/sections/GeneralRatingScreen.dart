@@ -19,42 +19,42 @@ class _GeneralRatingScreenState extends State<GeneralRatingScreen> {
 
   // بيانات تقييمات وهمية عامة
   final List<Map<String, dynamic>> _sampleRatings = [
-    {
-      'user': 'أحمد محمد',
-      'rating': 5,
-      'comment': 'خدمة ممتازة وسريعة، فريق العمل محترف جداً',
-      'date': 'منذ ساعتين',
-    },
-    {
-      'user': 'فاطمة علي',
-      'rating': 4,
-      'comment': 'جيدة ولكن تأخر قليلاً في الوصول',
-      'date': 'منذ يوم',
-    },
-    {
-      'user': 'خالد إبراهيم',
-      'rating': 5,
-      'comment': 'أفضل خدمة استخدمتها، سعر معقول وسرعة في التنفيذ',
-      'date': 'منذ 3 أيام',
-    },
-    {
-      'user': 'سارة عبدالله',
-      'rating': 3,
-      'comment': 'متوسطة، تحتاج لتحسين في وقت الاستجابة',
-      'date': 'منذ أسبوع',
-    },
-    {
-      'user': 'محمود حسن',
-      'rating': 5,
-      'comment': 'خدمة رائعة وأنصح الجميع بتجربتها',
-      'date': 'منذ أسبوع',
-    },
-    {
-      'user': 'نورا أحمد',
-      'rating': 2,
-      'comment': 'لم تكن التجربة جيدة كما توقعت',
-      'date': 'منذ أسبوعين',
-    },
+    // {
+    //   'user': 'أحمد محمد',
+    //   'rating': 5,
+    //   'comment': 'خدمة ممتازة وسريعة، فريق العمل محترف جداً',
+    //   'date': 'منذ ساعتين',
+    // },
+    // {
+    //   'user': 'فاطمة علي',
+    //   'rating': 4,
+    //   'comment': 'جيدة ولكن تأخر قليلاً في الوصول',
+    //   'date': 'منذ يوم',
+    // },
+    // {
+    //   'user': 'خالد إبراهيم',
+    //   'rating': 5,
+    //   'comment': 'أفضل خدمة استخدمتها، سعر معقول وسرعة في التنفيذ',
+    //   'date': 'منذ 3 أيام',
+    // },
+    // {
+    //   'user': 'سارة عبدالله',
+    //   'rating': 3,
+    //   'comment': 'متوسطة، تحتاج لتحسين في وقت الاستجابة',
+    //   'date': 'منذ أسبوع',
+    // },
+    // {
+    //   'user': 'محمود حسن',
+    //   'rating': 5,
+    //   'comment': 'خدمة رائعة وأنصح الجميع بتجربتها',
+    //   'date': 'منذ أسبوع',
+    // },
+    // {
+    //   'user': 'نورا أحمد',
+    //   'rating': 2,
+    //   'comment': 'لم تكن التجربة جيدة كما توقعت',
+    //   'date': 'منذ أسبوعين',
+    // },
   ];
 
   Future<void> _submitRating() async {
@@ -376,26 +376,26 @@ class _GeneralRatingScreenState extends State<GeneralRatingScreen> {
             const SizedBox(height: 30),
 
             // قسم التقييمات السابقة
-            const Text(
-              'آراء العملاء',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
+            // const Text(
+            //   'آراء العملاء',
+            //   style: TextStyle(
+            //     fontSize: 20,
+            //     fontWeight: FontWeight.bold,
+            //     color: Colors.black87,
+            //   ),
+            // ),
 
             const SizedBox(height: 8),
 
-            Text(
-              '${_sampleRatings.length} تقييم',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-            ),
+            // Text(
+            //   '${_sampleRatings.length} تقييم',
+            //   style: TextStyle(
+            //     color: Colors.grey[600],
+            //     fontSize: 14,
+            //   ),
+            // ),
 
-            const SizedBox(height: 20),
+            // const SizedBox(height: 20),
 
             // قائمة التقييمات
             ..._sampleRatings.map(_buildRatingItem).toList(),

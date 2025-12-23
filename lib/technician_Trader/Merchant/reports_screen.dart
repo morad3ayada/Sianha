@@ -439,7 +439,7 @@ class _TechnicianReportsScreenState extends State<ReportsScreen>
                               ? DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(order['createdOn']))
                               : 'بدون تاريخ'),
                           trailing: Text(
-                            '${order['totalPrice'] ?? order['price'] ?? 0} ر.س',
+                            '${order['totalPrice'] ?? order['price'] ?? 0} جنية',
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                           ),
                         );

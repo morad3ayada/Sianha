@@ -14,7 +14,11 @@ class OrderTrackingScreen extends StatefulWidget {
   final String specialization;
   final String? technicianName;
   final String? technicianPhone;
+  final String? merchantPhone; // Added
   final String? arrivalTime;
+  final int orderStatus;
+  final String? address; // Added
+  final String? customerPhone; // Added
 
   const OrderTrackingScreen({
     Key? key,
@@ -24,7 +28,11 @@ class OrderTrackingScreen extends StatefulWidget {
     required this.specialization,
     this.technicianName,
     this.technicianPhone,
+    this.merchantPhone, // Added
     this.arrivalTime,
+    required this.orderStatus,
+    this.address, // Added
+    this.customerPhone, // Added
   }) : super(key: key);
 
   @override
@@ -39,23 +47,25 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   @override
   void initState() {
     super.initState();
-    _simulateProgress();
+    _initializeStatus();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
+  void _initializeStatus() {
+    final status = widget.orderStatus;
+    // 0: Pending, 1: Assigned, 2: Accepted, 3: InProgress, 4: Completed, 5: Cancelled, 6: Rejected
 
-  void _simulateProgress() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && !_orderCancelled) setState(() => _currentStep = 1);
-    });
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted && !_orderCancelled) setState(() => _currentStep = 2);
-    });
-    Future.delayed(const Duration(seconds: 8), () {
-      if (mounted && !_orderCancelled) setState(() => _currentStep = 3);
+    if (status == 5 || status == 6) {
+      _orderCancelled = true;
+      _cancellationReason = status == 5 ? "تم الإلغاء" : "تم رفض الطلب";
+      return;
+    }
+
+    setState(() {
+      if (status >= 4) {
+        _currentStep = 4;
+      } else {
+        _currentStep = status;
+      }
     });
   }
 
@@ -81,7 +91,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       case 'cleaning_laundry':
         return 'نظافة وغسيل';
       default:
-        return 'خدمة صيانة';
+        return type; // Return the name directly if it's already a display name
     }
   }
 
@@ -263,10 +273,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       final apiClient = ApiClient();
 
       // Assuming API expects cancel-order/{id}
-      // Or post to cancel-order with ID in body/query? 
-      // The user prompt said: execute specific CURL which is POST cancel-order/{id}
-      // So URL is .../cancel-order/ID
-      
       final url = "${ApiConstants.cancelOrder}/${widget.orderId}";
       
       await apiClient.post(
@@ -360,7 +366,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton.icon(
-                        onPressed: _cancelOrder,
+                      onPressed: _cancelOrder,
                         icon: const Icon(Icons.cancel, color: Colors.red),
                         label: const Text(
                           'إلغاء الطلب',
@@ -523,7 +529,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             const SizedBox(height: 16),
             _buildInfoRow(
                 'رقم الطلب:', widget.orderId, Icons.confirmation_number),
-            _buildInfoRow('العميل:', widget.customerName, Icons.person),
+            _buildInfoRow('العميل:', widget.customerName.isEmpty || widget.customerName == 'العميل' ? 'غير متوفر' : widget.customerName, Icons.person),
+            _buildInfoRow('رقم العميل:', (widget.customerPhone != null && widget.customerPhone!.isNotEmpty) ? widget.customerPhone! : 'غير متوفر', Icons.phone_android),
+            _buildInfoRow('العنوان:', (widget.address != null && widget.address!.isNotEmpty) ? widget.address! : 'غير محدد', Icons.location_on),
             _buildInfoRow(
                 'المبلغ:',
                 '${widget.totalAmount.toStringAsFixed(2)} جنيه',
@@ -538,8 +546,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
   Widget _buildTechnicianInfoCard() {
     final String techName = widget.technicianName ?? 'لم يتم التعيين بعد';
-    final String techPhone = widget.technicianPhone ?? '---';
-    final String arrivalTime = widget.arrivalTime ?? 'غير محدد';
+    final String techPhone = widget.merchantPhone ?? widget.technicianPhone ?? '---';
 
     return Container(
       decoration: BoxDecoration(
@@ -571,7 +578,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'معلومات الفني',
+                  'معلومات الفني/التاجر',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -581,9 +588,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('اسم الفني:', techName, Icons.person),
+            _buildInfoRow('اسم الفني/التاجر:', techName, Icons.person),
             _buildInfoRow('رقم الهاتف:', techPhone, Icons.phone),
-            _buildInfoRow('معاد الوصول:', arrivalTime, Icons.access_time),
           ],
         ),
       ),
@@ -660,12 +666,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            _buildStep('تم استلام الطلب', 'تم استلام طلبك بنجاح', 0),
-            _buildStep('تم تحرك الفني', 'الفني في طريقه إليك', 1),
-            _buildStep('تم وصول الفني', 'الفني وصل إلى موقعك', 2),
-            _buildStep('جاري/تم تنفيذ الخدمة', 'يتم تنفيذ الخدمة المطلوبة', 3),
-            _buildStep('تم إكمال الطلب بنجاح',
-                'تم إتمام جميع المراحل (يشمل الدفع)', 4),
+            _buildStep('استلام الطلب', 'تم استلام طلبك بنجاح ونحن بصدد مراجعته', 0),
+            _buildStep('تعيين فني', 'تم تعيين فني مختص للقيام بالمهمة', 1),
+            _buildStep('قبول الطلب', 'تم قبول طلبك والفني قيد التجهيز', 2),
+            _buildStep('جاري التنفيذ', 'الفني بدأ في تنفيذ الخدمة المطلوبة', 3),
+            _buildStep('تم اكتمال الطلب',
+                'تم إتمام الخدمة بنجاح (يشمل الدفع)', 4),
           ],
         ),
       ),

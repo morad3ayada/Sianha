@@ -49,12 +49,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _profileData = response;
-          // If we are already on the orders tab, fetch orders
-          if (_selectedSection == 1 && !_ordersFetched) {
-            _fetchMyOrders();
-          }
           _isLoading = false;
         });
+        // Always fetch orders to update the count in the header
+        if (!_ordersFetched) {
+          _fetchMyOrders();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -618,8 +618,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'العنوان',
             Icons.location_on_rounded,
             [
-              // _buildInfoItem(Icons.location_city, 'المحافظة:', city),
-              // _buildInfoItem(Icons.map_outlined, 'المنطقة:', 'شيخ زايد'),
+              _buildInfoItem(Icons.location_city, 'المحافظة:', _profileData?['governorateName'] ?? _profileData?['governorate'] ?? 'غير محدد'),
+              _buildInfoItem(Icons.map_outlined, 'المنطقة:', _profileData?['areaName'] ?? _profileData?['area'] ?? 'غير محدد'),
               _buildInfoItem(
                   Icons.home_work, 'العنوان:', address),
             ],
@@ -627,6 +627,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
 
           const SizedBox(height: 16),
+
+
 
           // أزرار الإجراءات
           Row(
@@ -875,29 +877,55 @@ Widget _buildRatingItem(String title, String value) {
 }
 
 Widget _buildOrderCard(dynamic order) {
+  // Print order data for debugging
+  print("📦 Order Data: $order");
+  
   // Map API fields safely
   final id = order['id'] ?? 'N/A';
   final serviceName = order['problemDescription'] ?? 'خدمة عامة';
-  // Check if status is Map or String/Int
-  // API might return status as object or id. Adjust based on response.
-  // Assuming simple status for now or missing.
   final statusId = order['orderStatus'] ?? 0;
-  String statusText = 'قيد المعالجة';
-  Color statusColor = Colors.orange;
+  String statusText = 'غير معروف';
+  Color statusColor = Colors.grey;
   
-  if (statusId == 1) {
-    statusText = 'مكتمل';
-    statusColor = Colors.green;
-  } else if (statusId == 2) {
-    statusText = 'ملغي';
-    statusColor = Colors.red;
+  // Map status according to enum: Pending=0, Assigned=1, Accepted=2, InProgress=3, Completed=4, Cancelled=5, Rejected=6
+  switch (statusId) {
+    case 0:
+      statusText = 'قيد الانتظار';
+      statusColor = Colors.orange;
+      break;
+    case 1:
+      statusText = 'تم التعيين';
+      statusColor = Colors.blue;
+      break;
+    case 2:
+      statusText = 'مقبول';
+      statusColor = Colors.lightBlue;
+      break;
+    case 3:
+      statusText = 'قيد التنفيذ';
+      statusColor = Colors.purple;
+      break;
+    case 4:
+      statusText = 'مكتمل';
+      statusColor = Colors.green;
+      break;
+    case 5:
+      statusText = 'ملغي';
+      statusColor = Colors.red;
+      break;
+    case 6:
+      statusText = 'مرفوض';
+      statusColor = Colors.red;
+      break;
   }
 
   final date = order['createdDate'] != null 
       ? order['createdDate'].toString().split('T')[0] 
       : '---';
   final price = order['price'] ?? 0;
-  final technician = 'غير محدد'; // Not always in list response
+  final technician = order['techniciaName'] ?? order['technicianName'] ?? order['TechnicianName'] ?? order['merchantName'] ?? order['MerchantName'] ?? order['assignedTechnician'] ?? 'غير محدد';
+  
+  print("👤 Technician/Merchant Name: $technician");
 
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -923,14 +951,18 @@ Widget _buildOrderCard(dynamic order) {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              "طلب #$id",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+            Expanded(
+              child: Text(
+                "طلب #$id",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -1001,16 +1033,16 @@ Widget _buildOrderCard(dynamic order) {
                 color: Colors.yellow[700],
               ),
             ),
-            TextButton(
-              onPressed: () {
-                // عرض تفاصيل الطلب
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.yellow[700],
-                padding: EdgeInsets.zero,
-              ),
-              child: const Text('عرض التفاصيل'),
-            ),
+            // TextButton(
+            //   onPressed: () {
+            //     // عرض تفاصيل الطلب
+            //   },
+            //   style: TextButton.styleFrom(
+            //     foregroundColor: Colors.yellow[700],
+            //     padding: EdgeInsets.zero,
+            //   ),
+            //   child: const Text('عرض التفاصيل'),
+            // ),
           ],
         ),
       ],

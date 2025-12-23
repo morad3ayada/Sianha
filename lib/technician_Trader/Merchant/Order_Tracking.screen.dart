@@ -1,6 +1,7 @@
-// order_tracking_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/api_constants.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   final Map<String, dynamic> order;
@@ -14,91 +15,231 @@ class OrderTrackingScreen extends StatefulWidget {
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   // متغير لتخزين وقت التجهيز (يمكن أن يكون فارغاً)
   late String _preparationTime;
-  // **متغير جديد لتتبع الحالة القابلة للتغيير يدويًا**
-  late String _currentOrderStatus;
-  // **متغير جديد لتغيير لون الحالة القابلة للتغيير يدويًا**
+  // **متغير جديد لتتبع الحالة الرقمية**
+  late int _currentStatusId; 
+  // **متغير لعرض النص العربي للحالة**
+  late String _currentStatusText;
+  // **متغير لتغيير لون الحالة**
   late Color _currentStatusColor;
 
   @override
   void initState() {
     super.initState();
     _preparationTime = widget.order['preparationTime'] ?? '--';
-    _currentOrderStatus = widget.order['status'] ?? 'جديد';
-    _currentStatusColor = widget.order['statusColor'] ?? Colors.grey;
+    
+    // Initialize Status ID
+    if (widget.order['rawStatus'] != null && widget.order['rawStatus'] is int) {
+      _currentStatusId = widget.order['rawStatus'];
+    } else {
+      // Fallback parsing or default
+      _currentStatusId = 0; 
+    }
+    
+    _updateStatusDisplay();
   }
 
-  // **دالة جديدة: لتأكيد الطلب يدويًا (التاجر)**
-  void _confirmOrder() {
-    setState(() {
-      // قم بتغيير الحالة إلى "قيد التجهيز" أو "مقبول"
-      _currentOrderStatus = 'مقبول';
-      _currentStatusColor = Colors.green;
-    });
-    // هنا يجب إضافة منطق لحفظ الحالة الجديدة في قاعدة البيانات/الـ State
-    _showSuccessMessage(
-        context, 'تم تأكيد الطلب بنجاح. الآن يمكنك تحديد وقت التجهيز.');
+  void _updateStatusDisplay() {
+    switch (_currentStatusId) {
+      case 0: // Pending
+        _currentStatusText = 'قيد الانتظار';
+        _currentStatusColor = Color(0xFFFFD700);
+        break;
+      case 1: // Assigned
+        _currentStatusText = 'تم التعيين';
+        _currentStatusColor = Colors.blue;
+        break;
+      case 2: // Accepted
+        _currentStatusText = 'تم القبول';
+        _currentStatusColor = Colors.teal;
+        break;
+      case 3: // InProgress
+        _currentStatusText = 'قيد التنفيذ';
+        _currentStatusColor = Colors.orange;
+        break;
+      case 4: // Completed
+        _currentStatusText = 'مكتمل';
+        _currentStatusColor = Colors.green;
+        break;
+      case 5: // Cancelled
+        _currentStatusText = 'ملغي';
+        _currentStatusColor = Colors.red;
+        break;
+      case 6: // Rejected
+        _currentStatusText = 'مرفوض';
+        _currentStatusColor = Colors.red[900]!;
+        break;
+      default:
+        _currentStatusText = 'غير معروف';
+        _currentStatusColor = Colors.grey;
+    }
   }
 
-  // 1. دالة لعرض مربع حوار إدخال وقت التجهيز
-  void _showPreparationTimeDialog() {
-    String tempTime = _preparationTime == '--' ? '' : _preparationTime;
+  // 5. دالة تحديث الحالة في السيرفر
+  Future<void> _updateStatusOnServer(int newStatus, {double? price}) async {
+    try {
+      // إظهار مؤشر تحميل
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFD700)))),
+      );
 
-    showDialog(
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final apiClient = ApiClient();
+
+      if (token == null) {
+        Navigator.pop(context);
+        return;
+      }
+
+      final orderId = widget.order['rawId'];
+      // استخراج السعر الحالي من البيانات المعروضة (سعر الوحدة أو الإجمالي)
+      final currentPrice = price ?? double.tryParse(widget.order['amount']?.toString().replaceAll(' ج.م', '') ?? '0') ?? 0.0;
+
+      print('🚀 Updating Order $orderId to status $newStatus with price $currentPrice');
+      
+      final response = await apiClient.put(
+        ApiConstants.merchantUpdateOrderStatus,
+        {
+          "orderId": orderId.toString(),
+          "status": newStatus,
+          "price": currentPrice
+        },
+        token: token,
+      );
+
+      Navigator.pop(context); // إخفاء مؤشر التحميل
+
+      if (response != null) {
+        setState(() {
+          _currentStatusId = newStatus;
+          _updateStatusDisplay();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم تحديث حالة الطلب بنجاح'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      print('Error updating status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشل تحديث الحالة: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // دالة الرفض المتخصصة
+  Future<void> _rejectOrderFromServer() async {
+    final TextEditingController reasonController = TextEditingController();
+    
+    final bool? confirm = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('تحديد وقت التجهيز ⏱️'),
-          content: TextField(
-            autofocus: true,
-            onChanged: (value) {
-              tempTime = value;
-            },
-            keyboardType: TextInputType.text,
-            decoration: InputDecoration(
-              hintText: "مثال: 30 دقيقة",
-              labelText: "وقت التجهيز المتوقع (للتجار)",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (tempTime.isNotEmpty) {
-                  setState(() {
-                    _preparationTime = tempTime;
-                    _currentOrderStatus =
-                        'قيد التجهيز'; // تحديث الحالة إلى قيد التجهيز
-                    _currentStatusColor = Colors.amber;
-                    // هنا يمكن إضافة منطق لحفظ القيمة في قاعدة البيانات/الـ State
-                  });
-                }
-                Navigator.pop(context);
-                _showSuccessMessage(context,
-                    'تم حفظ وقت التجهيز وتحديث حالة الطلب إلى (قيد التجهيز): $_preparationTime');
-              },
-              child: Text('حفظ'),
+      builder: (context) => AlertDialog(
+        title: Text('تأكيد رفض الطلب'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('هل أنت متأكد من رفض الطلب؟'),
+            SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'سبب الرفض...',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('رفض الطلب', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
+
+    if (confirm != true) return;
+
+    final reason = reasonController.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('يرجى كتابة سبب الرفض')));
+      return;
+    }
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => Center(child: CircularProgressIndicator()),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final apiClient = ApiClient();
+      final orderId = widget.order['rawId'];
+
+      // استدعاء API الرفض المتخصص (POST)
+      final response = await apiClient.post(
+        ApiConstants.merchantRejectOrder,
+        {
+          "orderId": orderId.toString(),
+          "rejectionReason": reason
+        },
+        token: token,
+      );
+
+      Navigator.pop(context);
+
+      if (response != null) {
+        setState(() {
+          _currentStatusId = 6;
+          _updateStatusDisplay();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم رفض الطلب بنجاح'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل الرفض: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  // 1. قبول الطلب
+  void _confirmOrder() {
+    _updateStatusOnServer(2); // Accepted
+  }
+
+  // 2. وضايف التنفيذ
+  void _showPreparationTimeDialog() {
+    _updateStatusOnServer(3); // InProgress
+  }
+
+  // 3. إتمام الطلب
+  void _completeOrder() {
+    _updateStatusOnServer(4); // Completed
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isCancelled = _currentStatusId == 5;
+    bool isRejected = _currentStatusId == 6;
+    bool isDoneOrCancelled = _currentStatusId >= 4;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
-          'تتبع الطلب ${widget.order['id']}',
+          '${widget.order['title'] ?? ''} - ${widget.order['items'] != null && (widget.order['items'] as List).isNotEmpty ? (widget.order['items'] as List)[0]['name'] : ''}',
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
-            fontSize: 20,
+            fontSize: 16, // Reduced size to fit both
           ),
+          overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: Color(0xFFFFD700),
         elevation: 0,
@@ -120,7 +261,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
             SizedBox(height: 24),
 
-            // معلومات العميل والمندوب
+            // معلومات العميل
             _buildCustomerAndAgentInfo(),
 
             SizedBox(height: 24),
@@ -136,7 +277,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             ),
             SizedBox(height: 16),
 
-            // خطوات التتبع الفعلية (تعتمد الآن على _currentOrderStatus)
+            // خطوات التتبع الفعلية
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -155,10 +296,25 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: (!isCancelled && !isRejected && !isDoneOrCancelled) 
+        ? Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                minimumSize: Size(double.infinity, 50),
+              ),
+              onPressed: _rejectOrderFromServer,
+              icon: Icon(Icons.cancel),
+              label: Text('رفض الطلب نهائياً'),
+            ),
+          )
+        : null,
     );
   }
 
-  // 2. دالة بناء بطاقة ملخص الطلب (تم تعديلها لاستخدام المتغيرات الجديدة)
+  // 2. دالة بناء بطاقة ملخص الطلب
   Widget _buildOrderSummaryCard(BuildContext context) {
     return Container(
       padding: EdgeInsets.all(16),
@@ -223,13 +379,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  // **استخدام اللون المُحدَّث**
                   color: _currentStatusColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  // **استخدام الحالة المُحدَّثة**
-                  _currentOrderStatus,
+                  _currentStatusText,
                   style: TextStyle(
                     color: Colors.black,
                     fontSize: 12,
@@ -244,48 +398,29 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  // 3. دالة بناء معلومات العميل والمندوب
+  // 3. دالة بناء معلومات العميل فقط
   Widget _buildCustomerAndAgentInfo() {
-    // يجب التأكد من تمرير هذه الحقول في خريطة الطلب (order)
-    final customer = widget.order['customerInfo'] ??
-        {'name': 'غير متوفر', 'phone': '--', 'address': 'غير متوفر'};
-    final agent =
-        widget.order['deliveryAgent'] ?? {'name': 'غير متوفر', 'phone': '--'};
+    // محاولة استخراج معلومات العميل من عدة مصادر محتملة في الـ API
+    final String name = widget.order['customerName'] ?? widget.order['customer'] ?? widget.order['customerInfo']?['name'] ?? 'غير متوفر';
+    final String phone = widget.order['customerPhoneNumber'] ?? widget.order['customerPhone'] ?? widget.order['customerInfo']?['phone'] ?? '--';
+    final String addr = widget.order['address'] ?? widget.order['customerInfo']?['address'] ?? 'غير متوفر';
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // معلومات العميل
-        Expanded(
-          child: _buildInfoCard(
-            title: 'معلومات العميل',
-            icon: Icons.person,
-            details: [
-              _buildDetailRow('الاسم:', customer['name']),
-              _buildDetailRow('العنوان:', customer['address']),
-              _buildDetailRow('الهاتف:', customer['phone'], isPhone: true),
-            ],
-            color: Colors.blue,
-          ),
-        ),
-        SizedBox(width: 16),
-        // معلومات المندوب
-        Expanded(
-          child: _buildInfoCard(
-            title: 'معلومات المندوب',
-            icon: Icons.delivery_dining,
-            details: [
-              _buildDetailRow('الاسم:', agent['name']),
-              _buildDetailRow('الهاتف:', agent['phone'], isPhone: true),
-            ],
-            color: Colors.deepOrange,
-          ),
-        ),
-      ],
+    return Container(
+      width: double.infinity,
+      child: _buildInfoCard(
+        title: 'معلومات العميل',
+        icon: Icons.person,
+        details: [
+          _buildDetailRow('الاسم:', name),
+          _buildDetailRow('العنوان:', addr),
+          _buildDetailRow('الهاتف:', phone, isPhone: true),
+        ],
+        color: Colors.blue,
+      ),
     );
   }
 
-  // 4. دالة بناء بطاقة معلومات (عميل/مندوب)
+  // 4. دالة بناء بطاقة معلومات
   Widget _buildInfoCard({
     required String title,
     required IconData icon,
@@ -365,57 +500,55 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  // 6. دالة بناء خطوات التتبع (تم تعديلها لدعم زر تأكيد الطلب اليدوي)
+  // 6. دالة بناء خطوات التتبع (متوافقة مع Enum OrderStatus)
   Widget _buildTrackingSteps() {
-    // **استخدام المتغيرات المُحدَّثة**
-    String currentStatus = _currentOrderStatus;
     Color activeColor = Color(0xFFFFD700);
+    
+    // Status Logic
+    // 0: Pending, 1: Assigned, 2: Accepted, 3: InProgress, 4: Completed, 5: Cancelled, 6: Rejected
+    bool isCancelled = _currentStatusId == 5;
+    bool isRejected = _currentStatusId == 6;
+    bool isDoneOrCancelled = _currentStatusId >= 4;
 
     List<Map<String, dynamic>> trackingSteps = [
       {
-        'step': 'استلام الطلب 📝',
-        'responsible': 'النظام/التاجر',
+        'arabic_step': 'استلام الطلب',
         'completed': true,
-        'time': widget.order['time'] ?? 'الآن',
+        'active': true,
       },
       {
-        'step': 'تأكيد الطلب ✅',
-        'responsible': '**التاجر**',
-        // تعتبر الخطوة مكتملة إذا كانت الحالة ليست 'جديد'
-        'completed': currentStatus != 'جديد' && currentStatus != 'مرفوض',
-        'time': (currentStatus != 'جديد' && currentStatus != 'مرفوض')
-            ? 'تم التأكيد'
-            : '--',
-        // **إضافة زر الإجراء لخطوة تأكيد الطلب**
-        'action': true,
+        'arabic_step': 'تم قبول الطلب',
+        'completed': _currentStatusId >= 2 && !isCancelled && !isRejected,
+        'active': _currentStatusId >= 2,
+        'showAction': _currentStatusId == 0,
         'actionType': 'confirm',
       },
       {
-        'step': 'تجهيز الطلب (وقت: $_preparationTime) 📦',
-        'responsible': '**التاجر**',
-        // تعتبر الخطوة مكتملة إذا كانت الحالة 'قيد التجهيز' أو ما بعدها
-        'completed': currentStatus == 'قيد التجهيز' ||
-            currentStatus == 'للشحن' ||
-            currentStatus == 'تم التوصيل',
-        'time': currentStatus == 'قيد التجهيز' ? 'الآن' : '--',
-        // **تعديل شرط إظهار زر الإجراء لوقت التجهيز**
-        'action': true,
-        'actionType': 'prep_time',
+        'arabic_step': 'قيد التنفيذ والتجهيز',
+        'completed': _currentStatusId >= 3 && !isCancelled && !isRejected,
+        'active': _currentStatusId >= 3,
+        'showAction': _currentStatusId == 2,
+        'actionType': 'start',
       },
       {
-        'step': 'الشحن والاستلام 🛵',
-        'responsible': '**المندوب**',
-        'completed':
-            currentStatus == 'في الطريق' || currentStatus == 'تم التوصيل',
-        'time': currentStatus == 'في الطريق' ? 'الآن' : '--',
-      },
-      {
-        'step': 'التسليم والدفع 💰',
-        'responsible': '**المندوب/العميل**',
-        'completed': currentStatus == 'تم التوصيل',
-        'time': currentStatus == 'تم التوصيل' ? 'تم الانتهاء' : '--',
+        'arabic_step': 'تم التسليم والاكتمال',
+        'completed': _currentStatusId == 4,
+        'active': _currentStatusId == 4,
+        'showAction': _currentStatusId == 3,
+        'actionType': 'complete',
       },
     ];
+
+    // إضافة خطوة الرفض أو الإلغاء إذا حدث ذلك
+    if (isCancelled || isRejected) {
+      trackingSteps.add({
+        'arabic_step': isCancelled ? 'تم إلغاء الطلب' : 'تم رفض الطلب',
+        'completed': true,
+        'active': true,
+        'isError': true,
+        'reason': widget.order['rejectionReason'] ?? '',
+      });
+    }
 
     return ListView.builder(
       shrinkWrap: true,
@@ -424,45 +557,30 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       itemBuilder: (context, index) {
         final step = trackingSteps[index];
         bool isLast = index == trackingSteps.length - 1;
-
+        bool isCompleted = step['completed'] ?? false;
+        bool isError = step['isError'] ?? false;
+        
         Widget? actionButton;
-
-        if (step['action'] == true && !step['completed']) {
-          // زر تأكيد الطلب
-          if (step['actionType'] == 'confirm' && currentStatus == 'جديد') {
-            actionButton = ElevatedButton.icon(
-              onPressed: _confirmOrder, // الدالة لتأكيد الطلب يدويًا
-              icon: Icon(Icons.verified, size: 16),
-              label: Text('تأكيد الطلب يدويًا'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                textStyle: TextStyle(fontSize: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            );
-          }
-          // زر تحديد وقت التجهيز
-          else if (step['actionType'] == 'prep_time' &&
-              currentStatus == 'مقبول') {
-            actionButton = ElevatedButton.icon(
-              onPressed: _showPreparationTimeDialog,
-              icon: Icon(Icons.timer, size: 16),
-              label: Text('تحديد وقت التجهيز'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                textStyle: TextStyle(fontSize: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            );
-          }
+        if (step['showAction'] == true) {
+           if (step['actionType'] == 'confirm') {
+             actionButton = ElevatedButton(
+               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4)),
+               onPressed: _confirmOrder,
+               child: Text('قبول الطلب', style: TextStyle(fontSize: 12, color: Colors.white)),
+             );
+           } else if (step['actionType'] == 'start') {
+             actionButton = ElevatedButton(
+               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4)),
+               onPressed: _showPreparationTimeDialog,
+               child: Text('بدء التنفيذ', style: TextStyle(fontSize: 12, color: Colors.white)),
+             );
+           } else if (step['actionType'] == 'complete') {
+             actionButton = ElevatedButton(
+               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4)),
+               onPressed: _completeOrder,
+               child: Text('إتمام الطلب', style: TextStyle(fontSize: 12, color: Colors.white)),
+             );
+           }
         }
 
         return Column(
@@ -470,91 +588,64 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Step Indicator & Connector Line
+                // Indicator
                 Column(
                   children: [
                     Container(
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color:
-                            step['completed'] ? activeColor : Colors.grey[300],
+                        color: isError ? Colors.red : (isCompleted ? activeColor : Colors.grey[300]),
                         shape: BoxShape.circle,
                       ),
-                      child: step['completed']
-                          ? Icon(Icons.check, color: Colors.black, size: 18)
-                          : Center(
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                      child: isError 
+                          ? Icon(Icons.close, color: Colors.white, size: 18)
+                          : (isCompleted
+                            ? Icon(Icons.check, color: Colors.black, size: 18)
+                            : Center(
+                                child: Text('${index + 1}',
+                                    style: TextStyle(
+                                        color: Colors.black54, fontWeight: FontWeight.bold)))),
                     ),
                     if (!isLast)
                       Container(
-                        height: 50, // طول الخط الرأسي
+                        height: 50,
                         width: 2,
-                        color:
-                            step['completed'] ? activeColor : Colors.grey[300],
+                        color: isCompleted ? activeColor : Colors.grey[300],
                       ),
                   ],
                 ),
-
                 SizedBox(width: 16),
-
-                // Step Info and Action
+                
+                // Text
                 Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 4.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          step['step'],
+                          step['arabic_step'],
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: step['completed']
-                                ? Colors.black
-                                : Colors.black54,
                             fontSize: 16,
+                            color: isError ? Colors.red : (isCompleted ? Colors.black : Colors.grey),
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'مسؤولية: ${step['responsible']}',
-                              style: TextStyle(
-                                color: step['completed']
-                                    ? Colors.black87
-                                    : Colors.black45,
-                                fontSize: 12,
-                                fontStyle: FontStyle.italic,
-                              ),
+                        if (isError && step['reason'] != null && step['reason'].isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              'السبب: ${step['reason']}',
+                              style: TextStyle(fontSize: 13, color: Colors.red[700], fontStyle: FontStyle.italic),
                             ),
-                            Text(
-                              step['time'],
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                        // زر الإجراء الجديد أو زر وقت التجهيز
+                          ),
                         if (actionButton != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: actionButton,
                           ),
-                        if (actionButton == null &&
-                            step['action'] == true &&
-                            step['completed'])
-                          SizedBox(height: 16),
+                        SizedBox(height: 16),
                       ],
                     ),
                   ),
