@@ -1072,7 +1072,7 @@ class _RegisterCustomerScreenState extends State<RegisterCustomerScreen> {
 
                   // حقوق الطبع
                   Text(
-                    'جميع الحقوق محفوظة © 2024',
+                    ' morad3ayada © جميع الحقوق محفوظة',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
                       fontSize: 12,

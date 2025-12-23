@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '/sections/car/car_maintenance_section.dart';
-import '/sections/shop_list_screen.dart';
-import '/sections/mobile/mobile_shop_screen.dart';
-import '/sections/electronics/Dealer/electronics_section_screen.dart';
-import '/sections/maintenance/maintenance_sections_screen.dart';
-import '/sections/electronics/EmergencyServices/emergency_screen.dart';
-import '/sections/electronics/finishingtracking/finishing_request_screen.dart';
+import '../sections/maintenance/maintenance_sections_screen.dart';
+import '../sections/electronics/EmergencyServices/emergency_screen.dart';
 import 'NotificationsScreen.dart';
 import 'products_screen.dart'; // المنتجات
 import 'complaint_screen.dart';
@@ -155,34 +150,33 @@ class _HomeContentState extends State<HomeContent> {
   // Helper to map category to icon and page
   // This is temporary mapping based on names until backend sends this info
   Map<String, dynamic> _getCategoryConfig(ServiceCategory category) {
+    IconData icon;
     if (category.name.contains("سيارات")) {
-      return {'icon': Icons.directions_car_filled, 'page': const SelectServiceTypeScreen()};
+      icon = Icons.directions_car_filled;
     } else if (category.name.contains("منازل")) {
-      return {
-        'icon': Icons.home_repair_service, 
-        'page': MaintenanceSectionsScreen(
-          serviceCategoryId: category.id,
-          serviceCategoryName: category.name,
-        )
-      };
-    } else if (category.name.contains("إلكترون") || category.name.contains("الكترون")) {
-      return {'icon': Icons.electrical_services, 'page': ElectronicSectionScreen()};
+      icon = Icons.home_repair_service;
+    } else if (category.name.contains("إلكترون") ||
+        category.name.contains("الكترون")) {
+      icon = Icons.electrical_services;
     } else if (category.name.contains("تشطيب")) {
-      return {'icon': Icons.construction, 'page': const FinishingRequestScreen()};
-    } else if (category.name.contains("تاجر") || category.name.contains("تجار")) {
-      return {'icon': Icons.store_mall_directory, 'page': const ShopListScreen()};
-    } else if (category.name.contains("موبايل") || category.name.contains("هاتف")) {
-      return {'icon': Icons.phone_iphone, 'page': MobileShopScreen()};
+      icon = Icons.construction;
+    } else if (category.name.contains("تاجر") ||
+        category.name.contains("تجار")) {
+      icon = Icons.store_mall_directory;
+    } else if (category.name.contains("موبايل") ||
+        category.name.contains("هاتف")) {
+      icon = Icons.phone_iphone;
     } else {
-      // Default to Maintenance screen for generic handling if desired, or keep generic icon
-      return {
-        'icon': Icons.category, 
-        'page': MaintenanceSectionsScreen(
-          serviceCategoryId: category.id,
-          serviceCategoryName: category.name,
-        )
-      };
+      icon = Icons.category;
     }
+
+    return {
+      'icon': icon,
+      'page': MaintenanceSectionsScreen(
+        serviceCategoryId: category.id,
+        serviceCategoryName: category.name,
+      )
+    };
   }
 
   Widget _buildIconButton(IconData icon, VoidCallback onPressed) {
@@ -477,7 +471,7 @@ class _HomeContentState extends State<HomeContent> {
               fontWeight: FontWeight.bold,
               color: Colors.grey[900],
               height: 1.2,
-            ),
+              ),
             textAlign: TextAlign.center,
           ),
         ),

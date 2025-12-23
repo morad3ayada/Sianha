@@ -624,7 +624,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
 
                   // حقوق الطبع
                   Text(
-                    'جميع الحقوق محفوظة © 2024',
+                    ' morad3ayada © جميع الحقوق محفوظة',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 12,
