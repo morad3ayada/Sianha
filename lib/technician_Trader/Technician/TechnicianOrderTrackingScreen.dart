@@ -4,6 +4,8 @@ import '../../home/home_sections.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class TechnicianOrderTrackingScreen extends StatefulWidget {
   final String orderId;
@@ -200,48 +202,162 @@ class _TechnicianOrderTrackingScreenState extends State<TechnicianOrderTrackingS
     }
   }
 
+  Future<void> _uploadFixImage(File image) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final apiClient = ApiClient();
+
+    try {
+      print("🚀 Uploading fix image for OrderId: ${widget.orderId}");
+      
+      // Use the map for fields as per ApiClient definition
+      final fields = {
+        'OrderId': widget.orderId,
+      };
+
+      await apiClient.postMultipart(
+        'https://api.khidma.shop/api/Technicians/upload-fix-images', // Using full URL as requested
+        fields,
+        token: token,
+        file: image,
+        fileField: 'FixImages',
+      );
+      print("✅ Image uploaded successfully");
+    } catch (e) {
+      print("❌ Error uploading image: $e");
+      throw e; // Rethrow to stop completion process if upload fails
+    }
+  }
+
   void _showPriceDialog() {
     final TextEditingController priceController = TextEditingController();
+    File? selectedImage;
+    bool isUploading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('إتمام الطلب'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('من فضلك أدخل السعر النهائي للخدمة:'),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'السعر',
-                border: OutlineInputBorder(),
-                suffixText: 'جنية',
-              ),
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('إتمام الطلب'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('من فضلك أدخل السعر النهائي للخدمة:'),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'السعر',
+                    border: OutlineInputBorder(),
+                    suffixText: 'جنية',
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text('صورة الإصلاح (اختياري):', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                InkWell(
+                  onTap: () async {
+                    final ImagePicker picker = ImagePicker();
+                    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                    if (image != null) {
+                      setState(() {
+                        selectedImage = File(image.path);
+                      });
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    child: selectedImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(
+                              selectedImage!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.camera_alt, size: 40, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text('اضغط لإضافة صورة', style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                  ),
+                ),
+                 if (selectedImage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('إزالة الصورة', style: TextStyle(color: Colors.red)),
+                      onPressed: () {
+                         setState(() {
+                           selectedImage = null;
+                         });
+                      },
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final price = double.tryParse(priceController.text);
-              if (price != null && price > 0) {
-                Navigator.pop(context);
-                _updateStatus(4, price: price);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('الرجاء إدخال سعر صحيح')),
-                );
-              }
-            },
-            child: const Text('تأكيد وإتمام'),
-          ),
-        ],
+            actions: [
+              if (!isUploading)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('إلغاء'),
+                ),
+              ElevatedButton(
+                onPressed: isUploading ? null : () async {
+                  final price = double.tryParse(priceController.text);
+                  
+                  if (price == null || price <= 0) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('الرجاء إدخال سعر صحيح')),
+                    );
+                    return;
+                  }
+
+                  setState(() {
+                    isUploading = true;
+                  });
+
+                  try {
+                    // Upload image first if selected
+                    if (selectedImage != null) {
+                       await _uploadFixImage(selectedImage!);
+                    }
+
+                    if (context.mounted) {
+                       Navigator.pop(context); // Close dialog
+                       _updateStatus(4, price: price); // Complete order
+                    }
+                  } catch (e) {
+                     if (context.mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('فشل رفع الصورة: $e'), backgroundColor: Colors.red),
+                      );
+                      setState(() {
+                        isUploading = false;
+                      });
+                     }
+                  }
+                },
+                child: isUploading 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('تأكيد وإتمام'),
+              ),
+            ],
+          );
+        }
       ),
     );
   }

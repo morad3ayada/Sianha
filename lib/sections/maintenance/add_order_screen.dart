@@ -7,6 +7,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/models/area_model.dart';
 import 'LocationPickerSimulator.dart';
+import 'searching_offers_screen.dart';
 
 class AddOrderScreen extends StatefulWidget {
   final String serviceCategoryId;
@@ -25,6 +26,7 @@ class AddOrderScreen extends StatefulWidget {
 class _AddOrderScreenState extends State<AddOrderScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _priceController = TextEditingController();
   String? _userPhone;
   String? _selectedAddress;
   Map<String, dynamic>? _selectedLocation;
@@ -136,6 +138,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -220,7 +223,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         _selectedArea == null ||
         _selectedAddress == null ||
         _selectedAddress!.isEmpty ||
-        _titleController.text.isEmpty || // Validate Title
+        _titleController.text.isEmpty ||
+        _priceController.text.isEmpty ||
         _descriptionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -333,7 +337,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         "serviceSubCategoryId": widget.serviceSubCategoryId,
         "serviceCategoryId": widget.serviceCategoryId,
         "title": _titleController.text, // User input enforced
-        "price": 150,
+        "price": double.tryParse(_priceController.text) ?? 0,
         "cost": 0,
         "costRate": 0,
         "problemDescription": _descriptionController.text,
@@ -378,7 +382,11 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
       if (mounted) {
         // Return to Home (Root)
-        Navigator.of(context).pushNamedAndRemoveUntil('/homeSections', (route) => false);
+        // Navigate to Searching Screen instead of Home immediately
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const SearchingOffersScreen()),
+          (route) => false,
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -421,34 +429,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // سعر الزيارة
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'سعر الزيارة: 150',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'يجب عليك إضافة عنوان',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
+            // سعر الزيارة (إدخال)
+            _buildTextFieldSection(
+              title: 'السعر المقترح',
+              controller: _priceController,
+              hintText: 'أدخل السعر المقترح للخدمة',
+              keyboardType: TextInputType.number,
             ),
 
 
@@ -807,6 +793,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     required TextEditingController controller,
     required String hintText,
     int maxLines = 1,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
