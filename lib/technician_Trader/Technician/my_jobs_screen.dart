@@ -180,7 +180,7 @@ class _JobCardState extends State<JobCard> {
   bool _isExpanded = false;
   bool _isLoading = false;
 
-  Future<void> _updateStatus(int newStatus) async {
+  Future<void> _updateStatus(int newStatus, {double? price}) async {
     setState(() => _isLoading = true);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -190,7 +190,8 @@ class _JobCardState extends State<JobCard> {
       final apiClient = ApiClient();
       final payload = {
         "orderId": widget.job['id'],
-        "status": newStatus
+        "status": newStatus,
+        if (price != null) "price": price,
       };
 
       print("🚀 Updating Status to $newStatus: ${ApiConstants.updateOrderStatus}");
@@ -217,6 +218,59 @@ class _JobCardState extends State<JobCard> {
     }
   }
 
+  void _showCompletionDialog() {
+    final TextEditingController priceController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إتمام الطلب'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('يرجى إدخال التكلفة النهائية للطلب:'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: priceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'السعر',
+                border: OutlineInputBorder(),
+                suffixText: 'جنية',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              if (priceController.text.isNotEmpty) {
+                final price = double.tryParse(priceController.text);
+                if (price != null) {
+                  // Navigator.pop(context); // Removed to prevent double pop
+                  _updateStatus(4, price: price);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('يرجى إدخال سعر صحيح')),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('يرجى إدخال السعر')),
+                );
+              }
+            },
+            child: const Text('تأكيد وإتمام'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showFollowUpDialog() {
     showDialog(
       context: context,
@@ -235,7 +289,10 @@ class _JobCardState extends State<JobCard> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () => _updateStatus(4), // 4 = Complete
+            onPressed: () {
+              Navigator.pop(context); // Close parent dialog
+              _showCompletionDialog();
+            }, // 4 = Complete
             child: const Text('إتمام الطلب'),
           ),
         ],

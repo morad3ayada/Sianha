@@ -378,7 +378,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
       if (mounted) {
         // Return to Home (Root)
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushNamedAndRemoveUntil('/homeSections', (route) => false);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
