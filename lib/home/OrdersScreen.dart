@@ -891,12 +891,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         MaterialPageRoute(
                           builder: (context) => OrderTrackingScreen(
                             orderId: id.toString(),
-                            customerName: 'العميل',
+                            customerName: order['customerName'] ?? 'العميل',
                             totalAmount: (num.tryParse(price.toString()) ?? 0).toDouble(),
-                            specialization: 'طلب منتجات', // Or list product names
+                            specialization: 'طلب شراء',
                             orderStatus: status,
-                            technicianName: order['techniciaName'] ?? order['technicianName'] ?? order['merchantName'] ?? 'لم يتم التعيين بعد',
-                            technicianPhone: order['technicianPhone'],
+                            technicianName: merchantName,
+                            technicianPhone: order['merchantPhoneNumber'] ?? order['technicianPhone'],
+                            merchantPhone: order['merchantPhoneNumber'],
+                            address: order['address'],
+                            customerPhone: order['customerPhoneNumber'],
                           ),
                         ),
                       );

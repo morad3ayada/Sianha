@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:async'; // Added for Timer
 import '../../home/home_sections.dart'; // For navigation back to Home
 
 class SearchingOffersScreen extends StatefulWidget {
@@ -12,6 +13,8 @@ class SearchingOffersScreen extends StatefulWidget {
 class _SearchingOffersScreenState extends State<SearchingOffersScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  Timer? _timer; // Added
+
 
   @override
   void initState() {
@@ -20,11 +23,22 @@ class _SearchingOffersScreenState extends State<SearchingOffersScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    // Navigate to Home after 1 minute
+    _timer = Timer(const Duration(minutes: 1), () {
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeScreens()),
+          (route) => false,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _timer?.cancel(); // Cancel timer
     super.dispose();
   }
 

@@ -12,7 +12,7 @@ class ApiClient {
   Map<String, String> _getHeaders({String? token}) {
     final headers = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
     };
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
@@ -204,10 +204,11 @@ class ApiClient {
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body, {String? token}) async {
     final uri = Uri.parse(endpoint);
-    print("---------------- API REQUEST ----------------");
-    print("POST: $uri");
+    print("---------------------------------------------");
+    print("🚀 API REQUEST (POST)");
+    print("URL: $uri");
     print("Headers: ${_getHeaders(token: token)}");
-    print("Body: ${jsonEncode(body)}");
+    print("Payload: ${jsonEncode(body)}");
     print("---------------------------------------------");
 
     try {
@@ -216,23 +217,30 @@ class ApiClient {
         headers: _getHeaders(token: token),
         body: jsonEncode(body),
       );
-      print("---------------- API RESPONSE ----------------");
-      print("Status Code: ${response.statusCode}");
+      print("----------------------------------------------");
+      print("📦 API RESPONSE");
+      print("URL: $uri");
+      print("Status: ${response.statusCode}");
       print("Body: ${response.body}");
       print("----------------------------------------------");
       return _handleResponse(response);
     } catch (e) {
-      print("API ERROR: $e");
+      print("----------------------------------------------");
+      print("❌ API ERROR");
+      print("URL: $uri");
+      print("Error: $e");
+      print("----------------------------------------------");
       rethrow;
     }
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body, {String? token}) async {
     final uri = Uri.parse(endpoint);
-    print("---------------- API REQUEST (PUT) ----------------");
-    print("PUT: $uri");
+    print("---------------------------------------------------");
+    print("🚀 API REQUEST (PUT)");
+    print("URL: $uri");
     print("Headers: ${_getHeaders(token: token)}");
-    print("Body: ${jsonEncode(body)}");
+    print("Payload: ${jsonEncode(body)}");
     print("---------------------------------------------------");
 
     try {
@@ -241,13 +249,19 @@ class ApiClient {
         headers: _getHeaders(token: token),
         body: jsonEncode(body),
       );
-      print("---------------- API RESPONSE (PUT) ----------------");
-      print("Status Code: ${response.statusCode}");
+      print("----------------------------------------------------");
+      print("📦 API RESPONSE (PUT)");
+      print("URL: $uri");
+      print("Status: ${response.statusCode}");
       print("Body: ${response.body}");
       print("----------------------------------------------------");
       return _handleResponse(response);
     } catch (e) {
-      print("API ERROR (PUT): $e");
+      print("----------------------------------------------------");
+      print("❌ API ERROR (PUT)");
+      print("URL: $uri");
+      print("Error: $e");
+      print("----------------------------------------------------");
       rethrow;
     }
   }

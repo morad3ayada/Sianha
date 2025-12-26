@@ -20,6 +20,8 @@ import 'technician_Trader/Merchant/trader_home_screen.dart';
 import 'home/home_sections.dart';
 import 'home/profile_screen.dart'; // ✅ شاشة البروفايل الجديدة
 
+import 'core/widgets/connectivity_wrapper.dart'; // Added
+
 void main() {
   runApp(const MyApp());
 }
@@ -36,6 +38,9 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.amber,
         scaffoldBackgroundColor: Colors.white,
       ),
+      builder: (context, child) {
+        return ConnectivityWrapper(child: child!);
+      },
       home: const SplashScreen(), // Changed to SplashScreen for auth check
       routes: {
         // شاشات البداية

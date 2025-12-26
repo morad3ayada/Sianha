@@ -6,6 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/api_constants.dart';
 import '../core/api/api_client.dart';
 import '../core/models/area_model.dart';
+import '../core/models/merchant_model.dart';
+import '../core/services/merchant_service.dart';
+import '../sections/merchants/order_confirmation_screen.dart';
+import '../sections/maintenance/OrderTrackingScreen.dart';
+
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -134,7 +139,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
             for (var prod in productsList) {
               if (prod is Map) {
                 // Add merchant name and other details to product for display and order creation
-                prod['merchantName'] = item['fullName'] ?? item['name'] ?? item['FullName'] ?? item['Name'] ?? '';
+                final mName = item['shopName'] ?? item['fullName'] ?? item['name'] ?? item['FullName'] ?? item['Name'] ?? 'المتجر';
+                prod['merchantName'] = mName.toString().isEmpty ? 'المتجر' : mName.toString();
                 prod['merchantId'] = item['id'] ?? item['Id'];
                 prod['areaId'] = item['areaId'] ?? item['AreaId'];
                 prod['governorateId'] = item['governorateId'] ?? item['GovernorateId'];
@@ -466,6 +472,139 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
+  Future<void> _submitOrderDirectly(Map<String, dynamic> product, int quantity) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null) throw Exception('يجب تسجيل الدخول أولاً');
+
+      final apiClient = ApiClient();
+      final merchantService = MerchantService();
+
+      // 1. Fetch User Profile
+      final profile = await apiClient.get(ApiConstants.profile, token: token);
+      if (profile == null || profile is! Map<String, dynamic>) {
+        throw Exception('فشل في تحميل بيانات الملف الشخصي');
+      }
+
+      final String customerName = profile['fullName'] ?? profile['name'] ?? 'العميل';
+      final String customerPhone = profile['phoneNumber'] ?? profile['phone'] ?? '';
+      final String address = profile['address'] ?? '';
+      final String areaId = profile['areaId']?.toString() ?? product['areaId']?.toString() ?? '';
+      final String governorateId = profile['governorateId']?.toString() ?? product['governorateId']?.toString() ?? '';
+
+      if (customerPhone.isEmpty || address.isEmpty || areaId.isEmpty || governorateId.isEmpty) {
+        // Data incomplete, redirect to manual confirmation
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('برجاء استكمال بيانات العنوان والهاتف في ملفك الشخصي أولاً، أو سيتم توجيهك لشاشة التأكيد.')),
+          );
+          
+          final productModel = ProductModel(
+            id: product['id'],
+            name: product['name'] ?? product['nameArabic'] ?? product['productName'] ?? '',
+            price: (product['price'] ?? 0).toDouble(),
+            imageUrl: product['imageUrl'] ?? product['imagePath'],
+          );
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderConfirmationScreen(
+                selectedProducts: [
+                  SelectedProduct(product: productModel, quantity: quantity)
+                ],
+                merchantName: product['merchantName'] ?? 'المتجر',
+                merchantPhone: product['merchantPhoneNumber'],
+                merchantId: product['merchantId'].toString(),
+                serviceCategoryId: (product['serviceCategoryId'] ?? "15db528b-a997-48bf-6275-08de3832fa71").toString(),
+                serviceSubCategoryId: (product['serviceSubCategoryId'] ?? "94ee40a6-7a52-42a0-96fc-653f3da82161").toString(),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
+      final String? merchantId = product['merchantId']?.toString();
+      print("🔎 Checking merchantId for direct order: $merchantId");
+
+      if (merchantId == null || merchantId.isEmpty || merchantId == "null") {
+        throw Exception('فشل في العثور على معرّف التاجر (merchantId)');
+      }
+
+      // 2. Prepare Order Data
+      final int totalPrice = (product['price'] ?? 0).toInt() * quantity;
+      
+      final orderData = {
+        "serviceCategoryId": product['serviceCategoryId']?.toString() ?? "14797499-b482-478b-402e-08de4243d1ff",
+        "serviceSubCategoryId": product['serviceSubCategoryId']?.toString() ?? "aa55fb73-b1c8-4e86-a982-283c8524f3c2",
+        "price": totalPrice,
+        "cost": 0,
+        "costRate": 0,
+        "problemDescription": "طلب شراء منتج: ${product['name'] ?? product['nameArabic'] ?? product['productName']}",
+        "address": address,
+        "governorateId": governorateId.toString(),
+        "areaId": areaId.toString(),
+        "payWay": 1, // Set to 1 as per curl
+        "urgent": true,
+        "title": "طلب شراء من ${product['merchantName'] != null && product['merchantName'].toString().isNotEmpty ? product['merchantName'] : 'المتجر'}",
+        "customerPhoneNumber": customerPhone,
+        "merchantId": merchantId,
+        "orderProducts": [
+          {
+            "productId": product['id'].toString(),
+            "quantity": quantity,
+          }
+        ],
+      };
+
+      // 3. Submit Order
+      final response = await merchantService.createOrder(orderData, token: token);
+      
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                SizedBox(width: 8),
+                Text('تم تأكيد الطلب'),
+              ],
+            ),
+            content: const Text('تم إرسال طلبك بنجاح! يمكنك متابعته من شاشة طلبياتي.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('حسناً', style: TextStyle(color: Colors.yellow[700], fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل إرسال الطلب: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _showQuantityDialog(BuildContext context, Map<String, dynamic> product) {
     int quantity = 1;
     showDialog(
@@ -522,7 +661,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _createOrder(product, quantity);
+                    _submitOrderDirectly(product, quantity);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow[700]),
                   child: const Text('تأكيد الشراء', style: TextStyle(color: Colors.black)),
@@ -533,77 +672,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
         );
       },
     );
-  }
-
-  Future<void> _createOrder(Map<String, dynamic> product, int quantity) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-
-      if (token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الرجاء تسجيل الدخول أولاً')),
-        );
-        return;
-      }
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
-      final orderData = {
-        "title": "طلب من متجر: ${product['name'] ?? product['nameArabic'] ?? product['productName']}",
-        "problemDescription": "طلب شراء منتج",
-        "price": ((product['price'] ?? 0) * quantity).toInt(),
-        "cost": 0,
-        "costRate": 0,
-        "areaId": product['areaId'],
-        "governorateId": product['governorateId'],
-        "payWay": 0,
-        "urgent": false,
-        "merchantId": product['merchantId'],
-        "serviceSubCategoryId": product['serviceSubCategoryId'] ?? "94ee40a6-7a52-42a0-96fc-653f3da82161",
-        "serviceCategoryId": product['serviceCategoryId'] ?? "15db528b-a997-48bf-6275-08de3832fa71",
-        "orderProducts": [
-          {
-            "productId": product['id'],
-            "quantity": quantity
-          }
-        ]
-      };
-
-      print("Creating order with data: $orderData");
-
-      final response = await http.post(
-        Uri.parse(ApiConstants.createOrder),
-        headers: {
-          'accept': 'text/plain',
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(orderData),
-      );
-
-      if (mounted) Navigator.pop(context); // Close loading dialog
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إنشاء الطلب بنجاح'), backgroundColor: Colors.green),
-        );
-      } else {
-        throw Exception('فشل في إنشاء الطلب: ${response.statusCode} - ${response.body}');
-      }
-    } catch (e) {
-      print("Error creating order: $e");
-      if (mounted) {
-         if (Navigator.canPop(context)) Navigator.pop(context); // Fallback to close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
   }
 
   void _showFullScreenImage(BuildContext context, String imageUrl) {

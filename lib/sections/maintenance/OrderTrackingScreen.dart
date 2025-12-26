@@ -14,11 +14,12 @@ class OrderTrackingScreen extends StatefulWidget {
   final String specialization;
   final String? technicianName;
   final String? technicianPhone;
-  final String? merchantPhone; // Added
+  final String? merchantPhone;
   final String? arrivalTime;
   final int orderStatus;
-  final String? address; // Added
-  final String? customerPhone; // Added
+  final String? address;
+  final String? customerPhone;
+  final bool isFromConfirmation;
 
   const OrderTrackingScreen({
     Key? key,
@@ -28,11 +29,12 @@ class OrderTrackingScreen extends StatefulWidget {
     required this.specialization,
     this.technicianName,
     this.technicianPhone,
-    this.merchantPhone, // Added
+    this.merchantPhone,
     this.arrivalTime,
     required this.orderStatus,
-    this.address, // Added
-    this.customerPhone, // Added
+    this.address,
+    this.customerPhone,
+    this.isFromConfirmation = false,
   }) : super(key: key);
 
   @override
@@ -120,7 +122,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             _buildPaymentOption(
               icon: Icons.money,
               title: 'الدفع نقداً',
-              subtitle: 'ادفع نقداً للفني عند الانتهاء',
+              subtitle: 'ادفع نقداً عند الاستلام',
               color: Colors.green,
               onTap: () {
                 Navigator.pop(context);
@@ -200,7 +202,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             ),
             const SizedBox(height: 10),
             const Text(
-              'سيقوم الفني باستلام المبلغ نقداً عند الانتهاء من الخدمة',
+              'سيقوم المندوب/التاجر باستلام المبلغ نقداً عند التوصيل',
               style: TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -272,7 +274,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       final token = prefs.getString('auth_token');
       final apiClient = ApiClient();
 
-      // Assuming API expects cancel-order/{id}
       final url = "${ApiConstants.cancelOrder}/${widget.orderId}";
       
       await apiClient.post(
@@ -290,7 +291,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           _cancellationReason = "تم الإلغاء من قبل العميل";
         });
         
-        // Navigate to Home
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreens()), 
           (route) => false,
@@ -321,7 +321,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          'تتبع الطلب المتقدم',
+          'تتبع الطلب',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -331,37 +331,24 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         centerTitle: true,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        automaticallyImplyLeading: !widget.isFromConfirmation,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // معلومات الطلب
             _buildOrderInfoCard(),
-
             const SizedBox(height: 20),
-
-            // معلومات الفني
             _buildTechnicianInfoCard(),
-
             const SizedBox(height: 20),
-
-            // تتبع المراحل
             _buildTrackingStepper(),
-
             const SizedBox(height: 20),
-
-            // حالة الإلغاء إذا تم الإلغاء
             if (_orderCancelled) _buildCancellationStatus(),
-
             const SizedBox(height: 20),
-
-            // ⭐️ الأزرار الرئيسية ⭐️
             if (!_orderCancelled)
               Column(
                 children: [
-                  // زر إلغاء الطلب (يظهر في جميع المراحل ما عدا المرحلة النهائية)
-                  if (_currentStep < 4)
+                   if (_currentStep < 4)
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -387,38 +374,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
                   if (_currentStep < 4) const SizedBox(height: 10),
 
-                  // زر الدفع (يظهر فقط في المرحلة 3)
-                  // Return to Home Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                         Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (context) => const HomeScreens()), 
-                          (route) => false,
-                        );
-                      },
-                      icon: const Icon(Icons.home, color: Colors.black),
-                      label: const Text(
-                        'العودة للصفحة الرئيسية',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[200],
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                      ),
-                    ),
-                  ),
+                   // Payment button logic (removed for now as per previous state, assuming handled elsewhere or auto)
 
-                  // زر التقييم (يظهر فقط بعد اكتمال الطلب)
                   if (_currentStep == 4)
                     SizedBox(
                       width: double.infinity,
@@ -445,13 +402,44 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     ),
                 ],
               ),
+            
+            if (widget.isFromConfirmation) ...[
+               const SizedBox(height: 20),
+               SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const HomeScreens()), 
+                      (route) => false,
+                    );
+                  },
+                  icon: const Icon(Icons.home, color: Colors.white),
+                  label: const Text(
+                    'العودة للصفحة الرئيسية',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  // ويدجت حالة الإلغاء
   Widget _buildCancellationStatus() {
     return Container(
       width: double.infinity,
@@ -485,7 +473,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  // باقي الـ Widgets بدون تغيير
   Widget _buildOrderInfoCard() {
     return Container(
       decoration: BoxDecoration(
@@ -527,9 +514,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow(
-                'رقم الطلب:', widget.orderId, Icons.confirmation_number),
-            _buildInfoRow('العميل:', widget.customerName.isEmpty || widget.customerName == 'العميل' ? 'غير متوفر' : widget.customerName, Icons.person),
+            // _buildInfoRow('رقم الطلب:', widget.orderId, Icons.confirmation_number), // Removed
+            // _buildInfoRow('العميل:', ...), // Removed
             _buildInfoRow('رقم العميل:', (widget.customerPhone != null && widget.customerPhone!.isNotEmpty) ? widget.customerPhone! : 'غير متوفر', Icons.phone_android),
             _buildInfoRow('العنوان:', (widget.address != null && widget.address!.isNotEmpty) ? widget.address! : 'غير محدد', Icons.location_on),
             _buildInfoRow(
@@ -574,11 +560,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     color: Colors.yellow[50],
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.engineering, color: Colors.yellow[800]),
+                  child: Icon(Icons.store, color: Colors.yellow[800]),
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'معلومات الفني/التاجر',
+                  'معلومات التاجر/الفني',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -588,7 +574,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('اسم الفني/التاجر:', techName, Icons.person),
+            _buildInfoRow('اسم التاجر/الفني :', techName, Icons.storefront),
             _buildInfoRow('رقم الهاتف:', techPhone, Icons.phone),
           ],
         ),
@@ -652,11 +638,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     color: Colors.yellow[50],
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.track_changes, color: Colors.yellow[800]),
+                  child: Icon(Icons.local_shipping, color: Colors.yellow[800]),
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'تتبع حالة الطلب',
+                  'حالة التوصيل',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -666,12 +652,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            _buildStep('استلام الطلب', 'تم استلام طلبك بنجاح ونحن بصدد مراجعته', 0),
-            _buildStep('تعيين فني', 'تم تعيين فني مختص للقيام بالمهمة', 1),
-            _buildStep('قبول الطلب', 'تم قبول طلبك والفني قيد التجهيز', 2),
-            _buildStep('جاري التنفيذ', 'الفني بدأ في تنفيذ الخدمة المطلوبة', 3),
-            _buildStep('تم اكتمال الطلب',
-                'تم إتمام الخدمة بنجاح (يشمل الدفع)', 4),
+            // Updated steps for Merchant/Product Order Flow
+            _buildStep('تم إرسال الطلب', 'تم إرسال طلبك للتاجر بنجاح', 0),
+            _buildStep('قيد المراجعة/التجهيز', 'يقوم التاجر بتجهيز طلبك', 1),
+            _buildStep('تم قبول الطلب', 'الطلب جاهز وجاري ترتيب التوصيل', 2),
+            _buildStep('جاري التوصيل', 'مندوب التوصيل في الطريق إليك', 3),
+            _buildStep('تم الاستلام', 'تم استلام الطلب واكتمال العملية', 4),
           ],
         ),
       ),
@@ -715,7 +701,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             child: Icon(
               isCancelled
                   ? Icons.cancel
-                  : (isCompleted ? Icons.check : Icons.schedule),
+                  : (isCompleted ? Icons.check : Icons.local_shipping),
               color: Colors.white,
               size: 18,
             ),
@@ -748,22 +734,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
           ),
-          if (isCurrent && stepNumber == 3 && !isCancelled)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red[700],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'مطلوب دفع',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
         ],
       ),
     );
